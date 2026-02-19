@@ -1,0 +1,67 @@
+# ========================
+# Environment & Secrets
+# ========================
+.env
+.env.*
+
+# ========================
+# Python
+# ========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
+dist/
+build/
+
+# ========================
+# Virtual Environment
+# ========================
+venv/
+env/
+.venv/
+
+# ========================
+# FAISS Index & Metadata DB
+# ========================
+faiss_index.index
+faiss_metadata.json
+metadata.db
+
+# ========================
+# Cache & Generated Files
+# ========================
+cache/
+cashe/
+static/images/*.png
+static/exports/
+
+# ========================
+# IDE & Editor
+# ========================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+
+# ========================
+# OS Files
+# ========================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ========================
+# Logs
+# ========================
+*.log
+
+# ========================
+# Misc
+# ========================
+.agent/

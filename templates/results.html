@@ -1,0 +1,372 @@
+<!-- templates/results.html -->
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="results-page">
+    <!-- Results Header -->
+    <div class="results-header glass-card mb-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center">
+            <div class="header-content">
+                <div class="result-badge mb-2">
+                    <span class="badge-glow">
+                        <i class="fas fa-check-circle me-1"></i>
+                        Analysis Complete
+                    </span>
+                </div>
+                <h1 class="results-title">
+                    <span class="gradient-text">{{ query }}</span>
+                </h1>
+                <div class="results-meta">
+                    <span class="meta-item">
+                        <i class="fas fa-tag me-1"></i>
+                        {{ feature|title }}
+                    </span>
+                    <span class="meta-divider">•</span>
+                    <span class="meta-item">
+                        <i class="fas fa-file-alt me-1"></i>
+                        {{ total_papers }} papers
+                    </span>
+                    <span class="meta-divider">•</span>
+                    <span class="meta-item">
+                        <i class="fas fa-clock me-1"></i>
+                        {{ fetch_time }}s fetch + {{ process_time }}s analysis
+                    </span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <a href="/" class="btn btn-outline-light btn-sm">
+                    <i class="fas fa-plus me-1"></i> New Search
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row mb-4 stats-row">
+        <div class="col-6 col-md-3 mb-3">
+            <div class="glass-card stat-card">
+                <div class="stat-icon">
+                    <i class="fas fa-file-alt"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value">{{ total_papers }}</div>
+                    <div class="stat-label">Papers Found</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 mb-3">
+            <div class="glass-card stat-card">
+                <div class="stat-icon analyzed">
+                    <i class="fas fa-brain"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value">{{ result.papers_analyzed }}</div>
+                    <div class="stat-label">Analyzed</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 mb-3">
+            <div class="glass-card stat-card">
+                <div class="stat-icon fetch">
+                    <i class="fas fa-bolt"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value">{{ fetch_time }}s</div>
+                    <div class="stat-label">Fetch Time</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3 mb-3">
+            <div class="glass-card stat-card">
+                <div class="stat-icon process">
+                    <i class="fas fa-microchip"></i>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value">{{ process_time }}s</div>
+                    <div class="stat-label">AI Analysis</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Tabs -->
+    <div class="glass-card results-content">
+        <div class="tabs-header">
+            <ul class="nav nav-pills" id="resultsTab" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="analysis-tab" data-bs-toggle="tab" data-bs-target="#analysis"
+                        type="button" role="tab">
+                        <i class="fas fa-brain me-2"></i>AI Analysis
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="papers-tab" data-bs-toggle="tab" data-bs-target="#papers" type="button"
+                        role="tab">
+                        <i class="fas fa-file-alt me-2"></i>Top Papers
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="visuals-tab" data-bs-toggle="tab" data-bs-target="#visuals"
+                        type="button" role="tab">
+                        <i class="fas fa-chart-bar me-2"></i>Visualizations
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="citations-tab" data-bs-toggle="tab" data-bs-target="#citations"
+                        type="button" role="tab">
+                        <i class="fas fa-quote-right me-2"></i>Citations
+                    </button>
+                </li>
+            </ul>
+        </div>
+
+        <div class="tab-content" id="resultsTabContent">
+            <!-- Analysis Tab -->
+            <div class="tab-pane fade show active" id="analysis" role="tabpanel">
+                {% if result.success %}
+                <div class="analysis-container">
+                    <div class="analysis-toolbar">
+                        <button class="btn btn-sm btn-outline-accent" id="copyAnalysisBtn">
+                            <i class="fas fa-copy me-1"></i> Copy
+                        </button>
+                        <button class="btn btn-sm btn-outline-accent" onclick="window.print()">
+                            <i class="fas fa-print me-1"></i> Print
+                        </button>
+                    </div>
+                    <div class="analysis-content markdown-body" id="analysisContent">
+                        <!-- Will be rendered by marked.js -->
+                    </div>
+                    <!-- Raw markdown stored here for JS rendering -->
+                    <script id="rawMarkdown" type="text/plain">{{ result.result }}</script>
+                    <script>
+                        (function () {
+                            var raw = document.getElementById('rawMarkdown').textContent;
+                            if (typeof marked !== 'undefined' && raw && raw.trim()) {
+                                document.getElementById('analysisContent').innerHTML = marked.parse(raw);
+                            } else {
+                                document.getElementById('analysisContent').innerHTML = raw.replace(/\n/g, '<br>');
+                            }
+                        })();
+                    </script>
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <h5>Analysis Error</h5>
+                    <p>{{ result.error if result.error else 'No analysis results available.' }}</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Papers Tab -->
+            <div class="tab-pane fade" id="papers" role="tabpanel">
+                {% if result.top_papers %}
+                <div class="papers-grid">
+                    {% for paper in result.top_papers %}
+                    <div class="paper-card" data-paper-index="{{ loop.index0 }}">
+                        <div class="paper-header">
+                            <span class="paper-rank">#{{ paper.rank }}</span>
+                            <span class="paper-score">
+                                <i class="fas fa-chart-line me-1"></i>
+                                {{ (paper.similarity_score * 100)|round(1) }}% match
+                            </span>
+                        </div>
+                        <h5 class="paper-title">{{ paper.title }}</h5>
+                        <div class="paper-meta">
+                            <span class="meta-item">
+                                <i class="fas fa-users me-1"></i>
+                                {{ paper.authors|join(', ')|truncate(60) }}
+                            </span>
+                            <span class="meta-item">
+                                <i class="fas fa-calendar me-1"></i>
+                                {{ paper.year or 'N/A' }}
+                            </span>
+                            <span class="meta-item">
+                                <i class="fas fa-quote-left me-1"></i>
+                                {{ paper.citation_count or 0 }} citations
+                            </span>
+                            <span class="meta-item source-badge-sm">
+                                {{ paper.source|title }}
+                            </span>
+                        </div>
+                        <p class="paper-abstract">
+                            {{ paper.abstract[:300] if paper.abstract else 'No abstract available.' }}...
+                        </p>
+                        <div class="paper-actions">
+                            {% if paper.url %}
+                            <a href="{{ paper.url }}" target="_blank" class="btn btn-sm btn-outline-accent">
+                                <i class="fas fa-external-link-alt me-1"></i> View Paper
+                            </a>
+                            {% endif %}
+                            <button class="btn btn-sm btn-outline-light cite-btn" data-paper-index="{{ loop.index0 }}"
+                                data-result-id="{{ result_id }}">
+                                <i class="fas fa-quote-right me-1"></i> Cite
+                            </button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-file-alt"></i>
+                    <h5>No Papers Available</h5>
+                    <p>Paper details couldn't be retrieved for this analysis.</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Visualizations Tab -->
+            <div class="tab-pane fade" id="visuals" role="tabpanel">
+                <div class="visualizations-grid">
+                    {% if trends_plot %}
+                    <div class="viz-card">
+                        <div class="viz-header">
+                            <h6><i class="fas fa-chart-line me-2 text-accent"></i>Publication Trends</h6>
+                        </div>
+                        <div class="viz-body">
+                            <img src="{{ url_for('static', filename=trends_plot) }}" alt="Publication Trends"
+                                class="img-fluid rounded">
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if methods_plot %}
+                    <div class="viz-card">
+                        <div class="viz-header">
+                            <h6><i class="fas fa-flask me-2 text-accent"></i>Methodology Distribution</h6>
+                        </div>
+                        <div class="viz-body">
+                            <img src="{{ url_for('static', filename=methods_plot) }}" alt="Methodology Distribution"
+                                class="img-fluid rounded">
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if gap_plot %}
+                    <div class="viz-card full-width">
+                        <div class="viz-header">
+                            <h6><i class="fas fa-th me-2 text-accent"></i>Research Gap Analysis Matrix</h6>
+                        </div>
+                        <div class="viz-body">
+                            <img src="{{ url_for('static', filename=gap_plot) }}" alt="Research Gap Analysis Matrix"
+                                class="img-fluid rounded">
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if sources_plot %}
+                    <div class="viz-card">
+                        <div class="viz-header">
+                            <h6><i class="fas fa-database me-2 text-accent"></i>Data Sources</h6>
+                        </div>
+                        <div class="viz-body">
+                            <img src="{{ url_for('static', filename=sources_plot) }}" alt="Data Sources Distribution"
+                                class="img-fluid rounded">
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if not trends_plot and not methods_plot and not gap_plot %}
+                    <div class="empty-state full-width">
+                        <i class="fas fa-chart-pie"></i>
+                        <h5>No Visualizations Available</h5>
+                        <p>Not enough data to generate visualizations for this query.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Citations Tab -->
+            <div class="tab-pane fade" id="citations" role="tabpanel">
+                <div class="citations-container">
+                    <div class="citations-header">
+                        <h5><i class="fas fa-quote-right me-2 text-accent"></i>Citation Generator</h5>
+                        <p class="text-muted">Generate citations in multiple formats for all analyzed papers</p>
+                    </div>
+
+                    <div class="citation-formats">
+                        <div class="format-selector">
+                            <label class="format-option">
+                                <input type="radio" name="citationFormat" value="apa" checked>
+                                <span class="format-badge">APA 7th</span>
+                            </label>
+                            <label class="format-option">
+                                <input type="radio" name="citationFormat" value="mla">
+                                <span class="format-badge">MLA 9th</span>
+                            </label>
+                            <label class="format-option">
+                                <input type="radio" name="citationFormat" value="bibtex">
+                                <span class="format-badge">BibTeX</span>
+                            </label>
+                            <label class="format-option">
+                                <input type="radio" name="citationFormat" value="chicago">
+                                <span class="format-badge">Chicago</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="citations-output glass-input" id="citationsOutput">
+                        <p class="text-muted text-center py-4">
+                            <i class="fas fa-hand-pointer me-2"></i>
+                            Select a format above to generate citations
+                        </p>
+                    </div>
+
+                    <div class="citations-actions">
+                        <button class="btn btn-accent" id="generateCitationsBtn" data-result-id="{{ result_id }}">
+                            <i class="fas fa-magic me-2"></i>Generate All Citations
+                        </button>
+                        <button class="btn btn-outline-light" id="copyCitationsBtn">
+                            <i class="fas fa-copy me-2"></i>Copy
+                        </button>
+                        <a href="/export/citations/{{ result_id }}?format=bibtex" class="btn btn-outline-light">
+                            <i class="fas fa-download me-2"></i>Download .bib
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Section -->
+    <div class="export-section glass-card mt-4">
+        <div class="row align-items-center">
+            <div class="col-md-8">
+                <h5 class="mb-1">
+                    <i class="fas fa-file-pdf me-2 text-accent"></i>
+                    Export Research Report
+                </h5>
+                <p class="text-muted mb-0">
+                    Download a comprehensive PDF report with analysis, papers, and citations
+                </p>
+            </div>
+            <div class="col-md-4 text-md-end mt-3 mt-md-0">
+                <a href="/export/{{ result_id }}" class="btn btn-primary btn-glow">
+                    <i class="fas fa-download me-2"></i>
+                    Download PDF Report
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Citation Modal -->
+<div class="modal fade" id="citationModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content glass-card">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-quote-right me-2 text-accent"></i>
+                    Paper Citations
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="modalCitationContent">
+                    <!-- Citation content will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

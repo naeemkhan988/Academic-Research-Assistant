@@ -1,0 +1,218 @@
+<!-- templates/index.html -->
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="hero-section">
+    <div class="row justify-content-center">
+        <div class="col-lg-10 col-xl-8">
+            <!-- Hero Header -->
+            <div class="text-center mb-5 hero-content animate-in">
+                <div class="hero-badge mb-3">
+                    <span class="badge-glow">
+                        <i class="fas fa-sparkles me-1"></i>
+                        AI-Powered Research Analytics
+                    </span>
+                </div>
+
+                <h1 class="hero-title">
+                    <span class="gradient-text">Academic Research</span>
+                    <br>
+                    <span class="hero-subtitle">Assistant</span>
+                </h1>
+
+                <p class="hero-description">
+                    Accelerate your literature review with AI-powered analysis across
+                    <strong>8 academic databases</strong> in parallel.
+                    Get comprehensive summaries, research gaps, and automatic citations in seconds.
+                </p>
+
+                <!-- Feature Pills -->
+                <div class="feature-pills">
+                    <span class="feature-pill">
+                        <i class="fas fa-bolt"></i> ~5s Search
+                    </span>
+                    <span class="feature-pill">
+                        <i class="fas fa-layer-group"></i> Multi-AI Fallback
+                    </span>
+                    <span class="feature-pill">
+                        <i class="fas fa-quote-right"></i> Auto Citations
+                    </span>
+                    <span class="feature-pill">
+                        <i class="fas fa-chart-line"></i> Gap Analysis
+                    </span>
+                </div>
+            </div>
+
+            <!-- Error Alert -->
+            {% if error %}
+            <div class="alert glass-alert alert-danger mb-4" role="alert">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-exclamation-triangle me-3 fa-lg"></i>
+                    <div>
+                        <strong>Search Error</strong>
+                        <p class="mb-0 mt-1">{{ error }}</p>
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endif %}
+
+            <!-- Search Form Card -->
+            <div class="glass-card search-card animate-in" style="animation-delay: 0.2s;">
+                <form method="POST" id="researchForm" class="search-form">
+                    <!-- Query Input -->
+                    <div class="form-group mb-4">
+                        <label for="query" class="form-label">
+                            <i class="fas fa-search me-2 text-accent"></i>
+                            Research Topic
+                        </label>
+                        <div class="input-wrapper">
+                            <input type="text" class="form-control glass-input" id="query" name="query"
+                                placeholder="e.g., machine learning in drug discovery, climate change mitigation strategies..."
+                                required autocomplete="off" value="{{ request.form.query if request.form }}">
+                            <div class="input-icon">
+                                <i class="fas fa-microscope"></i>
+                            </div>
+                        </div>
+                        <div class="form-hint">
+                            Enter a specific research area, topic, or question for comprehensive analysis
+                        </div>
+                    </div>
+
+                    <!-- Feature Selection -->
+                    <div class="form-group mb-4">
+                        <label for="feature" class="form-label">
+                            <i class="fas fa-wand-magic-sparkles me-2 text-accent"></i>
+                            Analysis Type
+                        </label>
+                        <div class="feature-grid">
+                            <label class="feature-option">
+                                <input type="radio" name="feature" value="summarize" checked>
+                                <div class="feature-card">
+                                    <div class="feature-icon">📚</div>
+                                    <div class="feature-name">Literature Summary</div>
+                                    <div class="feature-desc">Comprehensive research overview</div>
+                                </div>
+                            </label>
+
+                            <label class="feature-option">
+                                <input type="radio" name="feature" value="gaps">
+                                <div class="feature-card">
+                                    <div class="feature-icon">🔍</div>
+                                    <div class="feature-name">Research Gaps</div>
+                                    <div class="feature-desc">Identify opportunities</div>
+                                </div>
+                            </label>
+
+                            <label class="feature-option">
+                                <input type="radio" name="feature" value="compare">
+                                <div class="feature-card">
+                                    <div class="feature-icon">⚖️</div>
+                                    <div class="feature-name">Compare Studies</div>
+                                    <div class="feature-desc">Cross-study analysis</div>
+                                </div>
+                            </label>
+
+                            <label class="feature-option">
+                                <input type="radio" name="feature" value="methods">
+                                <div class="feature-card">
+                                    <div class="feature-icon">🧪</div>
+                                    <div class="feature-name">Methodologies</div>
+                                    <div class="feature-desc">Research approach suggestions</div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="btn btn-primary btn-glow w-100" id="submitBtn">
+                        <span class="btn-text">
+                            <i class="fas fa-rocket me-2"></i>
+                            Analyze Research
+                        </span>
+                        <span class="btn-loading" style="display: none;">
+                            <div class="loading-dots">
+                                <span></span><span></span><span></span>
+                            </div>
+                            <span class="loading-text">Searching APIs...</span>
+                        </span>
+                    </button>
+                </form>
+
+                <!-- Search Progress -->
+                <div class="search-progress mt-4" id="searchProgress" style="display: none;">
+                    <div class="progress-header">
+                        <i class="fas fa-satellite-dish me-2"></i>
+                        <span>Searching Academic Databases</span>
+                        <span class="progress-timer" id="progressTimer">0.0s</span>
+                    </div>
+                    <div class="api-status-grid" id="apiStatusGrid">
+                        <!-- API statuses will be injected here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 
+            # Info Cards
+            <div class="row mt-5 info-cards">
+                <div class="col-md-3 col-6 mb-3">
+                    <div class="glass-card info-card">
+                        <div class="info-icon">
+                            <i class="fas fa-database"></i>
+                        </div>
+                        <div class="info-value">8</div>
+                        <div class="info-label">Academic APIs</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6 mb-3">
+                    <div class="glass-card info-card">
+                        <div class="info-icon">
+                            <i class="fas fa-bolt"></i>
+                        </div>
+                        <div class="info-value">~5s</div>
+                        <div class="info-label">Search Time</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6 mb-3">
+                    <div class="glass-card info-card">
+                        <div class="info-icon">
+                            <i class="fas fa-layer-group"></i>
+                        </div>
+                        <div class="info-value">3</div>
+                        <div class="info-label">AI Providers</div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-6 mb-3">
+                    <div class="glass-card info-card">
+                        <div class="info-icon">
+                            <i class="fas fa-quote-right"></i>
+                        </div>
+                        <div class="info-value">4</div>
+                        <div class="info-label">Citation Styles</div>
+                    </div>
+                </div>
+            </div> -->
+
+            <!-- API Sources -->
+            <div class="api-sources mt-4">
+                <div class="glass-card">
+                    <h6 class="sources-title">
+                        <i class="fas fa-plug me-2"></i>
+                        Connected Academic Sources
+                    </h6>
+                    <div class="sources-grid">
+                        <div class="source-badge">📚 arXiv</div>
+                        <div class="source-badge">🏥 PubMed</div>
+                        <div class="source-badge">🔬 Semantic Scholar</div>
+                        <div class="source-badge">📖 CORE</div>
+                        <div class="source-badge">📄 CrossRef</div>
+                        <div class="source-badge">🌐 OpenAlex</div>
+                        <div class="source-badge">📕 DOAJ</div>
+                        <div class="source-badge">🧬 Europe PMC</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
