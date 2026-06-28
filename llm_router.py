@@ -434,8 +434,14 @@ class LLMRouter:
     # Default system prompt for academic research
     SYSTEM_PROMPT = (
         "You are an expert academic research assistant. "
-        "Provide detailed, accurate, and well-structured analyses using markdown. "
-        "Be thorough, cite sources when possible, and maintain academic rigor."
+        "Provide detailed, accurate, and well-structured analyses. "
+        "Do NOT use Markdown symbols such as #, *, -, or bullet points. "
+        "Do NOT use emojis. Use plain professional text only. "
+        "Use clear section headings in BOLD UPPERCASE. "
+        "Each section should be written in continuous paragraph form. "
+        "Keep formatting clean and suitable for a formal research report. "
+        "Avoid repetition. Maintain an academic and professional tone. "
+        "Be thorough, cite sources using (Author, Year) format, and maintain academic rigor."
     )
     
     def __init__(self):
@@ -453,22 +459,22 @@ class LLMRouter:
         self.gemini = GeminiProvider(gemini_key)
         if self.gemini.available:
             self.providers.append(self.gemini)
-            logger.info("✅ Gemini provider registered (primary)")
+            logger.info("[OK] Gemini provider registered (primary)")
         else:
-            logger.warning("⚠️  Gemini API key not found — skipping")
+            logger.warning("[--] Gemini API key not found - skipping")
         
         # Secondary: Groq
         self.groq = GroqProvider(groq_key)
         if self.groq.available:
             self.providers.append(self.groq)
-            logger.info("✅ Groq provider registered (secondary)")
+            logger.info("[OK] Groq provider registered (secondary)")
         else:
-            logger.warning("⚠️  Groq API key not found — skipping")
+            logger.warning("[--] Groq API key not found - skipping")
         
         # Fallback: Ollama (local)
         self.ollama = OllamaProvider(ollama_url)
         self.providers.append(self.ollama)  # Always add, availability checked at call time
-        logger.info("✅ Ollama provider registered (fallback/offline)")
+        logger.info("[OK] Ollama provider registered (fallback/offline)")
         
         # Track which provider was last used
         self.last_provider_used: Optional[str] = None
@@ -477,7 +483,7 @@ class LLMRouter:
         self._provider_failures: Dict[str, float] = {}
         self._cooldown_seconds = 60  # Skip provider for 60s after failure
         
-        logger.info(f"🔄 LLM Router initialized with {len(self.providers)} provider(s)")
+        logger.info(f"[INIT] LLM Router initialized with {len(self.providers)} provider(s)")
     
     def _is_provider_cooled_down(self, provider_name: str) -> bool:
         """Check if a provider has had a recent failure and should be skipped"""
@@ -506,17 +512,17 @@ class LLMRouter:
         for provider in self.providers:
             # Skip providers that are cooling down from recent failures
             if not self._is_provider_cooled_down(provider.NAME):
-                logger.info(f"⏭️  Skipping {provider.NAME} (cooling down after recent failure)")
+                logger.info(f"[SKIP] Skipping {provider.NAME} (cooling down after recent failure)")
                 continue
             
             # For Ollama, check availability at call time
             if provider.NAME == PROVIDER_OLLAMA and not provider.available:
-                logger.warning(f"⏭️  Ollama not available (not running locally)")
+                logger.warning(f"[SKIP] Ollama not available (not running locally)")
                 errors.append(f"Ollama: not running at {provider.base_url}")
                 continue
             
             try:
-                logger.info(f"🔄 Trying provider: {provider.NAME}")
+                logger.info(f"[TRY] Trying provider: {provider.NAME}")
                 result = provider.generate(
                     prompt, sys_prompt, temperature, max_tokens
                 )
@@ -524,38 +530,38 @@ class LLMRouter:
                 if result and result.strip():
                     self.last_provider_used = provider.NAME
                     self._clear_provider_failure(provider.NAME)
-                    logger.info(f"✅ Response from {provider.NAME} ({len(result)} chars)")
+                    logger.info(f"[OK] Response from {provider.NAME} ({len(result)} chars)")
                     return result
                 else:
                     raise ProviderError(f"{provider.NAME} returned empty response")
                     
             except ProviderRateLimitError as e:
-                logger.warning(f"⚠️  {provider.NAME} rate limited: {e}")
+                logger.warning(f"[WARN] {provider.NAME} rate limited: {e}")
                 self._mark_provider_failed(provider.NAME)
                 errors.append(f"{provider.NAME}: rate limited")
                 
             except ProviderAuthError as e:
-                logger.warning(f"⚠️  {provider.NAME} auth error: {e}")
+                logger.warning(f"[WARN] {provider.NAME} auth error: {e}")
                 self._mark_provider_failed(provider.NAME)
                 errors.append(f"{provider.NAME}: authentication error")
                 
             except requests.exceptions.ConnectionError as e:
-                logger.warning(f"⚠️  {provider.NAME} connection error: {e}")
+                logger.warning(f"[WARN] {provider.NAME} connection error: {e}")
                 self._mark_provider_failed(provider.NAME)
                 errors.append(f"{provider.NAME}: connection failed")
                 
             except requests.exceptions.Timeout as e:
-                logger.warning(f"⚠️  {provider.NAME} timeout: {e}")
+                logger.warning(f"[WARN] {provider.NAME} timeout: {e}")
                 self._mark_provider_failed(provider.NAME)
                 errors.append(f"{provider.NAME}: request timed out")
                 
             except Exception as e:
-                logger.error(f"❌ {provider.NAME} unexpected error: {e}")
+                logger.error(f"[ERR] {provider.NAME} unexpected error: {e}")
                 self._mark_provider_failed(provider.NAME)
                 errors.append(f"{provider.NAME}: {str(e)[:100]}")
         
         # ALL providers failed — return safe fallback
-        logger.error(f"❌ All providers failed. Errors: {errors}")
+        logger.error(f"[ERR] All providers failed. Errors: {errors}")
         self.last_provider_used = "fallback"
         return self._generate_safe_fallback(prompt, errors)
     
@@ -570,16 +576,16 @@ class LLMRouter:
         
         for provider in self.providers:
             if not self._is_provider_cooled_down(provider.NAME):
-                logger.info(f"⏭️  Skipping {provider.NAME} (cooling down)")
+                logger.info(f"[SKIP] Skipping {provider.NAME} (cooling down)")
                 continue
             
             if provider.NAME == PROVIDER_OLLAMA and not provider.available:
-                logger.warning(f"⏭️  Ollama not available")
+                logger.warning(f"[SKIP] Ollama not available")
                 errors.append(f"Ollama: not running")
                 continue
             
             try:
-                logger.info(f"🔄 Trying stream from: {provider.NAME}")
+                logger.info(f"[TRY] Trying stream from: {provider.NAME}")
                 buffer = []
                 has_content = False
                 
@@ -595,38 +601,38 @@ class LLMRouter:
                     self.last_provider_used = provider.NAME
                     self._clear_provider_failure(provider.NAME)
                     total_len = sum(len(c) for c in buffer)
-                    logger.info(f"✅ Streamed from {provider.NAME} ({total_len} chars)")
+                    logger.info(f"[OK] Streamed from {provider.NAME} ({total_len} chars)")
                     return
                 else:
                     raise ProviderError(f"{provider.NAME} stream was empty")
                     
             except ProviderRateLimitError as e:
-                logger.warning(f"⚠️  {provider.NAME} rate limited during stream: {e}")
+                logger.warning(f"[WARN] {provider.NAME} rate limited during stream: {e}")
                 self._mark_provider_failed(provider.NAME)
                 errors.append(f"{provider.NAME}: rate limited")
                 
             except ProviderAuthError as e:
-                logger.warning(f"⚠️  {provider.NAME} auth error during stream: {e}")
+                logger.warning(f"[WARN] {provider.NAME} auth error during stream: {e}")
                 self._mark_provider_failed(provider.NAME)
                 errors.append(f"{provider.NAME}: auth error")
                 
             except requests.exceptions.ConnectionError:
-                logger.warning(f"⚠️  {provider.NAME} connection error during stream")
+                logger.warning(f"[WARN] {provider.NAME} connection error during stream")
                 self._mark_provider_failed(provider.NAME)
                 errors.append(f"{provider.NAME}: connection failed")
                 
             except requests.exceptions.Timeout:
-                logger.warning(f"⚠️  {provider.NAME} timeout during stream")
+                logger.warning(f"[WARN] {provider.NAME} timeout during stream")
                 self._mark_provider_failed(provider.NAME)
                 errors.append(f"{provider.NAME}: timeout")
                 
             except Exception as e:
-                logger.error(f"❌ {provider.NAME} stream error: {e}")
+                logger.error(f"[ERR] {provider.NAME} stream error: {e}")
                 self._mark_provider_failed(provider.NAME)
                 errors.append(f"{provider.NAME}: {str(e)[:100]}")
         
         # ALL providers failed — stream safe fallback
-        logger.error(f"❌ All providers failed for stream. Errors: {errors}")
+        logger.error(f"[ERR] All providers failed for stream. Errors: {errors}")
         self.last_provider_used = "fallback"
         yield from self._stream_safe_fallback(prompt, errors)
     
@@ -681,88 +687,151 @@ class LLMRouter:
     
     def _fallback_summary(self, error_info: str) -> str:
         return (
-            "## 📚 Literature Review Summary\n\n"
-            "### 🔬 Core Research Themes\n"
+            "AI ANALYSIS\n\n"
             "The analyzed literature establishes a robust dual-paradigm framework, "
             "integrating classical methodologies with emerging computational approaches. "
             "Key researchers have consistently emphasized the importance of high-fidelity "
             "data acquisition and cross-domain validation.\n\n"
-            "### 📈 Research Trajectories\n"
-            "1. **Automated Systems Integration**: Significant movement toward end-to-end automation.\n"
-            "2. **Scalability Challenges**: Critical bottlenecks in infrastructure scaling.\n"
-            "3. **Hybrid Methodologies**: Combining qualitative insights with quantitative metrics.\n\n"
-            "### 🧪 Methodological Innovations\n"
+            "LITERATURE SUMMARY\n\n"
+            "The existing body of research demonstrates significant movement toward end-to-end "
+            "automation, highlights critical bottlenecks in infrastructure scaling, and explores "
+            "hybrid methodologies that combine qualitative insights with quantitative metrics.\n\n"
+            "RESEARCH GAPS\n\n"
+            "Current research lacks comprehensive longitudinal studies and cross-domain "
+            "validation frameworks. The integration between traditional and modern computational "
+            "approaches remains insufficiently explored.\n\n"
+            "COMPARISON OF STUDIES\n\n"
+            "Studies vary in their adoption of classical versus computational methods. "
+            "Earlier works focus on foundational frameworks while recent publications "
+            "prioritize scalability and automation.\n\n"
+            "METHODOLOGIES\n\n"
             "Recent studies have pioneered longitudinal multi-variate analysis, "
             "improving predictive accuracy while reducing observational bias.\n\n"
-            "### 💡 Synthesis & Future Directions\n"
+            "APPLICATIONS AND IMPLICATIONS\n\n"
+            "The research findings have practical applications across multiple domains, "
+            "enabling more efficient and accurate analytical processes.\n\n"
+            "CHALLENGES AND LIMITATIONS\n\n"
+            "Key challenges include computational resource requirements, data availability "
+            "constraints, and the need for specialized expertise.\n\n"
+            "FUTURE DIRECTIONS\n\n"
             "The field is shifting toward more resilient and adaptable architectures. "
             "Future research should prioritize ethical implications and sustainability.\n\n"
-            "---\n"
-            f"*⚠️ This is a fallback response — all AI providers were unavailable. "
-            f"Reason: {error_info}*"
+            f"Note: This is a fallback response. All AI providers were unavailable. "
+            f"Reason: {error_info}"
         )
     
     def _fallback_gaps(self, error_info: str) -> str:
         return (
-            "## 🔍 Research Gap Analysis\n\n"
-            "### ⚠️ Methodological Under-specialization\n"
-            "Current literature frequently relies on homogenized datasets, creating visibility gaps "
-            "for edge cases and low-frequency variables.\n\n"
-            "### 📉 Longitudinal Data Scarcity\n"
-            "Most existing research focuses on short-term snapshots that fail to capture "
-            "cyclical dynamics and long-term trends.\n\n"
-            "### 🚀 Emerging Opportunities\n"
+            "AI ANALYSIS\n\n"
+            "The current state of research reveals several significant gaps that warrant "
+            "further investigation. These gaps span methodological, data-related, and "
+            "contextual dimensions.\n\n"
+            "LITERATURE SUMMARY\n\n"
+            "Existing research has established foundational frameworks but frequently relies "
+            "on homogenized datasets, creating visibility gaps for edge cases and "
+            "low-frequency variables.\n\n"
+            "RESEARCH GAPS\n\n"
+            "Current literature demonstrates methodological under-specialization and "
+            "longitudinal data scarcity. Most existing research focuses on short-term "
+            "snapshots that fail to capture cyclical dynamics and long-term trends.\n\n"
+            "COMPARISON OF STUDIES\n\n"
+            "Critical gaps outweigh minor ones, with scalability and real-world validation "
+            "representing the most pressing short-term needs.\n\n"
+            "METHODOLOGIES\n\n"
+            "The methodological landscape requires innovation in longitudinal research "
+            "designs and cross-domain validation techniques.\n\n"
+            "APPLICATIONS AND IMPLICATIONS\n\n"
             "Transitioning from reactive to proactive monitoring models presents significant "
-            "opportunities for future researchers.\n\n"
-            "### 📋 Priority Research Agenda\n"
-            "Developing standardized APIs for cross-platform data exchange remains the "
+            "opportunities for future researchers and practitioners.\n\n"
+            "CHALLENGES AND LIMITATIONS\n\n"
+            "Resource constraints and data availability remain primary barriers to "
+            "addressing the identified research gaps.\n\n"
+            "FUTURE DIRECTIONS\n\n"
+            "Developing standardized frameworks for cross-platform data exchange remains the "
             "highest priority for systemic interoperability.\n\n"
-            "---\n"
-            f"*⚠️ Fallback response — AI providers unavailable. Reason: {error_info}*"
+            f"Note: This is a fallback response. AI providers were unavailable. "
+            f"Reason: {error_info}"
         )
     
     def _fallback_comparison(self, error_info: str) -> str:
         return (
-            "## ⚖️ Comparative Study Synthesis\n\n"
-            "### 📊 Divergence in Approaches\n"
-            "The studies under review employ distinct theoretical frameworks — from "
-            "bottom-up modular approaches to top-down systemic integration.\n\n"
-            "### ✅ Consensus on Critical Metrics\n"
-            "Across all analyzed papers, there is near-unanimous agreement on the "
-            "necessity of real-time validation protocols.\n\n"
-            "### 💪 Unique Contributions\n"
-            "Each study provides a unique lens: earlier works focus on structural integrity, "
-            "while recent publications prioritize dynamic efficiency.\n\n"
-            "---\n"
-            f"*⚠️ Fallback response — AI providers unavailable. Reason: {error_info}*"
+            "AI ANALYSIS\n\n"
+            "The comparative analysis reveals distinct theoretical frameworks employed "
+            "across the studies, ranging from bottom-up modular approaches to top-down "
+            "systemic integration.\n\n"
+            "LITERATURE SUMMARY\n\n"
+            "The studies collectively contribute to a growing understanding of the field, "
+            "each approaching the research questions from unique perspectives.\n\n"
+            "RESEARCH GAPS\n\n"
+            "The comparison reveals gaps in cross-study validation and the need for "
+            "standardized evaluation metrics.\n\n"
+            "COMPARISON OF STUDIES\n\n"
+            "The studies under review employ distinct theoretical frameworks. Across all "
+            "analyzed papers, there is near-unanimous agreement on the necessity of "
+            "real-time validation protocols. Each study provides a unique lens: earlier "
+            "works focus on structural integrity, while recent publications prioritize "
+            "dynamic efficiency.\n\n"
+            "METHODOLOGIES\n\n"
+            "Methodological approaches range from traditional statistical analysis to "
+            "advanced computational techniques, with increasing adoption of hybrid methods.\n\n"
+            "APPLICATIONS AND IMPLICATIONS\n\n"
+            "The combined findings suggest practical pathways for implementation across "
+            "multiple application domains.\n\n"
+            "CHALLENGES AND LIMITATIONS\n\n"
+            "Common limitations include sample size constraints, domain specificity, "
+            "and limited reproducibility across different contexts.\n\n"
+            "FUTURE DIRECTIONS\n\n"
+            "Future research should focus on integrating the strongest elements from "
+            "each approach into unified frameworks.\n\n"
+            f"Note: This is a fallback response. AI providers were unavailable. "
+            f"Reason: {error_info}"
         )
     
     def _fallback_methodology(self, error_info: str) -> str:
         return (
-            "## 🔬 Methodology Suggestions\n\n"
-            "### Traditional Methods\n"
-            "1. **Systematic Literature Review**: Comprehensive evidence synthesis.\n"
-            "2. **Meta-Analysis**: Quantitative aggregation of findings.\n\n"
-            "### Innovative Methods\n"
-            "1. **Machine Learning Classification**: Automated paper categorization.\n"
-            "2. **NLP-Based Text Mining**: Extracting patterns from large corpora.\n\n"
-            "### Mixed Methods\n"
-            "Combining qualitative case studies with quantitative survey data "
-            "for comprehensive understanding.\n\n"
-            "---\n"
-            f"*⚠️ Fallback response — AI providers unavailable. Reason: {error_info}*"
+            "AI ANALYSIS\n\n"
+            "The methodological landscape for this research area encompasses both "
+            "traditional and innovative approaches, each offering distinct advantages.\n\n"
+            "LITERATURE SUMMARY\n\n"
+            "Existing methodological research has established systematic literature review "
+            "and meta-analysis as foundational approaches, while newer studies increasingly "
+            "adopt computational and AI-driven techniques.\n\n"
+            "RESEARCH GAPS\n\n"
+            "There remains a gap in the integration of qualitative and quantitative methods, "
+            "and hybrid approaches are still in early stages of development.\n\n"
+            "COMPARISON OF STUDIES\n\n"
+            "Traditional methods offer reliability and established validation protocols, while "
+            "modern approaches provide scalability and automation capabilities.\n\n"
+            "METHODOLOGIES\n\n"
+            "Traditional methods include systematic literature review for comprehensive evidence "
+            "synthesis and meta-analysis for quantitative aggregation of findings. Innovative "
+            "methods include machine learning classification for automated paper categorization "
+            "and NLP-based text mining for extracting patterns from large corpora. Mixed methods "
+            "combine qualitative case studies with quantitative survey data for comprehensive "
+            "understanding.\n\n"
+            "APPLICATIONS AND IMPLICATIONS\n\n"
+            "These methodologies have broad applicability across research domains and can "
+            "significantly enhance research efficiency and thoroughness.\n\n"
+            "CHALLENGES AND LIMITATIONS\n\n"
+            "Implementation challenges include computational resource requirements, the need "
+            "for specialized expertise, and data availability constraints.\n\n"
+            "FUTURE DIRECTIONS\n\n"
+            "Future methodological development should focus on integration frameworks that "
+            "combine the strengths of traditional and computational approaches.\n\n"
+            f"Note: This is a fallback response. AI providers were unavailable. "
+            f"Reason: {error_info}"
         )
     
     def _fallback_generic(self, error_info: str) -> str:
         return (
-            "## 📄 Analysis\n\n"
+            "AI ANALYSIS\n\n"
             "The research materials have been collected and indexed. However, "
             "AI-powered analysis is temporarily unavailable.\n\n"
-            "### Available Data\n"
+            "LITERATURE SUMMARY\n\n"
             "Papers have been successfully fetched and can be reviewed manually. "
             "The system will automatically retry AI analysis when providers become available.\n\n"
-            "---\n"
-            f"*⚠️ Fallback response — AI providers unavailable. Reason: {error_info}*"
+            f"Note: This is a fallback response. AI providers were unavailable. "
+            f"Reason: {error_info}"
         )
 
 

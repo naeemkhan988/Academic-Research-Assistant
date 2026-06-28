@@ -42,7 +42,7 @@ class Config:
     # Primary: Gemini (gemini-1.5-flash) → Secondary: Groq (llama3-70b) → Fallback: Ollama (llama3)
     AI_MODEL = 'multi-provider'  # Managed by llm_router.py
     AI_TEMPERATURE = 0.3
-    AI_MAX_TOKENS = 1500
+    AI_MAX_TOKENS = 4000
     
     # Parallel API settings
     API_TIMEOUT = 15  # seconds per API call

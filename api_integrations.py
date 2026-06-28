@@ -1,20 +1,35 @@
 # api_integrations.py
 """
-Enhanced API Integrations with Parallel Fetching
-Implements concurrent.futures.ThreadPoolExecutor for ~5s search time
+Enhanced API Integrations with Async Parallel Fetching
+Uses asyncio + httpx for true concurrent I/O across all APIs
 """
 
+import asyncio
+import httpx
 import requests
 import json
 import os
 import time
 import arxiv
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pymed import PubMed
 from config import Config
-from typing import List, Dict, Any, Callable, Optional
+from typing import List, Dict, Any
 from urllib.parse import quote
 import threading
+
+
+# Per-API hard timeouts (seconds)
+# Fast APIs get more time, slow/unreliable APIs get cut off early
+API_TIMEOUTS = {
+    'arxiv': 10,
+    'semantic_scholar': 10,
+    'openalex': 10,
+    'pubmed': 8,
+    'crossref': 8,
+    'core': 6,
+    'doaj': 6,
+    'europe_pmc': 6,
+}
 
 
 class SearchProgressTracker:
@@ -63,16 +78,23 @@ search_progress = SearchProgressTracker()
 
 class APIManager:
     """
-    Enhanced API Manager with Parallel Fetching
-    Uses ThreadPoolExecutor to fetch from all APIs simultaneously
+    Enhanced API Manager with Async Parallel Fetching
+    Uses asyncio + httpx for true concurrent I/O with per-API timeouts
     """
     
     def __init__(self):
+        # Keep requests session for sync library-based APIs (arxiv, pymed)
         self.session = requests.Session()
         self.session.headers.update({
             'User-Agent': 'AcademicResearchAssistant/2.0',
             'Accept': 'application/json'
         })
+        
+        # Shared headers for async httpx client
+        self._async_headers = {
+            'User-Agent': 'AcademicResearchAssistant/2.0',
+            'Accept': 'application/json'
+        }
         
         # API endpoints
         self.core_api_url = "https://api.core.ac.uk/v3/search/works"
@@ -83,20 +105,21 @@ class APIManager:
         
         # API display names for progress tracking
         self.api_display_names = {
-            'arxiv': '📚 arXiv',
-            'pubmed': '🏥 PubMed',
-            'semantic_scholar': '🔬 Semantic Scholar',
-            'core': '📖 CORE',
-            'crossref': '📄 CrossRef',
-            'openalex': '🌐 OpenAlex',
-            'doaj': '📕 DOAJ',
-            'europe_pmc': '🧬 Europe PMC'
+            'arxiv': 'arXiv',
+            'pubmed': 'PubMed',
+            'semantic_scholar': 'Semantic Scholar',
+            'core': 'CORE',
+            'crossref': 'CrossRef',
+            'openalex': 'OpenAlex',
+            'doaj': 'DOAJ',
+            'europe_pmc': 'Europe PMC'
         }
     
     # ==================== CACHING METHODS ====================
     
     def cache_response(self, query: str, api_name: str, response: Any) -> None:
-        """Enhanced caching with metadata"""
+        """Enhanced caching with metadata — normalizes query for consistent keys"""
+        query = query.lower().strip()
         try:
             cache_file = os.path.join(Config.CACHE_DIR, f"{api_name}_{quote(query, safe='')}.json")
             cache_data = {
@@ -110,7 +133,8 @@ class APIManager:
             print(f"Cache write error for {api_name}: {e}")
     
     def load_cached(self, query: str, api_name: str) -> Any:
-        """Load cached response if valid"""
+        """Load cached response if valid — normalizes query for consistent keys"""
+        query = query.lower().strip()
         try:
             cache_file = os.path.join(Config.CACHE_DIR, f"{api_name}_{quote(query, safe='')}.json")
             if os.path.exists(cache_file):
@@ -123,10 +147,12 @@ class APIManager:
             print(f"Cache read error for {api_name}: {e}")
         return None
     
-    # ==================== INDIVIDUAL API METHODS ====================
+    # ==================== SYNC API METHODS (library-based) ====================
+    # These use third-party libraries that are inherently synchronous.
+    # They are wrapped in asyncio.to_thread() when called from the async parallel method.
     
     def fetch_arxiv(self, query: str, max_results: int = None) -> List[Dict]:
-        """Enhanced arXiv API with proper parsing"""
+        """Enhanced arXiv API with proper parsing (sync — uses arxiv library)"""
         max_results = max_results or Config.MAX_PAPERS_PER_API
         
         cached = self.load_cached(query, 'arxiv')
@@ -171,7 +197,7 @@ class APIManager:
             return []
     
     def fetch_pubmed(self, query: str, max_results: int = None) -> List[Dict]:
-        """Enhanced PubMed API"""
+        """Enhanced PubMed API (sync — uses pymed library)"""
         max_results = max_results or Config.MAX_PAPERS_PER_API
         
         cached = self.load_cached(query, 'pubmed')
@@ -225,8 +251,12 @@ class APIManager:
             search_progress.update_status('pubmed', 'failed', 0)
             return []
     
-    def fetch_semantic_scholar(self, query: str, max_results: int = None) -> List[Dict]:
-        """Enhanced Semantic Scholar API"""
+    # ==================== ASYNC API METHODS (httpx-based) ====================
+    # These use httpx.AsyncClient for true async I/O.
+    # The client is created once in fetch_papers_parallel and passed in.
+    
+    async def fetch_semantic_scholar(self, query: str, client: httpx.AsyncClient, max_results: int = None) -> List[Dict]:
+        """Enhanced Semantic Scholar API (async)"""
         max_results = max_results or Config.MAX_PAPERS_PER_API
         
         cached = self.load_cached(query, 'semantic_scholar')
@@ -248,7 +278,7 @@ class APIManager:
             if Config.SEMANTIC_SCHOLAR_API_KEY:
                 headers['x-api-key'] = Config.SEMANTIC_SCHOLAR_API_KEY
             
-            response = self.session.get(url, params=params, headers=headers, timeout=Config.API_TIMEOUT)
+            response = await client.get(url, params=params, headers=headers)
             response.raise_for_status()
             
             data = response.json()
@@ -277,8 +307,8 @@ class APIManager:
             search_progress.update_status('semantic_scholar', 'failed', 0)
             return []
     
-    def fetch_core(self, query: str, max_results: int = None) -> List[Dict]:
-        """CORE API - One of the largest collections of open access research papers"""
+    async def fetch_core(self, query: str, client: httpx.AsyncClient, max_results: int = None) -> List[Dict]:
+        """CORE API - One of the largest collections of open access research papers (async)"""
         max_results = max_results or Config.MAX_PAPERS_PER_API
         
         cached = self.load_cached(query, 'core')
@@ -298,7 +328,7 @@ class APIManager:
             if hasattr(Config, 'CORE_API_KEY') and Config.CORE_API_KEY:
                 headers['Authorization'] = f'Bearer {Config.CORE_API_KEY}'
             
-            response = self.session.get(self.core_api_url, params=params, headers=headers, timeout=Config.API_TIMEOUT)
+            response = await client.get(self.core_api_url, params=params, headers=headers)
             response.raise_for_status()
             
             data = response.json()
@@ -329,8 +359,8 @@ class APIManager:
             search_progress.update_status('core', 'failed', 0)
             return []
     
-    def fetch_crossref(self, query: str, max_results: int = None) -> List[Dict]:
-        """CrossRef API - Primary source for scientific metadata"""
+    async def fetch_crossref(self, query: str, client: httpx.AsyncClient, max_results: int = None) -> List[Dict]:
+        """CrossRef API - Primary source for scientific metadata (async)"""
         max_results = max_results or Config.MAX_PAPERS_PER_API
         
         cached = self.load_cached(query, 'crossref')
@@ -347,7 +377,7 @@ class APIManager:
                 'select': 'title,author,abstract,DOI,published-print,published-online,container-title,URL,subject'
             }
             
-            response = self.session.get(self.crossref_api_url, params=params, timeout=Config.API_TIMEOUT)
+            response = await client.get(self.crossref_api_url, params=params)
             response.raise_for_status()
             
             data = response.json()
@@ -387,8 +417,8 @@ class APIManager:
             search_progress.update_status('crossref', 'failed', 0)
             return []
     
-    def fetch_openalex(self, query: str, max_results: int = None) -> List[Dict]:
-        """OpenAlex API - Free, open catalog of the global research system"""
+    async def fetch_openalex(self, query: str, client: httpx.AsyncClient, max_results: int = None) -> List[Dict]:
+        """OpenAlex API - Free, open catalog of the global research system (async)"""
         max_results = max_results or Config.MAX_PAPERS_PER_API
         
         cached = self.load_cached(query, 'openalex')
@@ -405,7 +435,7 @@ class APIManager:
                 'mailto': 'research-assistant@academic.edu'
             }
             
-            response = self.session.get(self.openalex_api_url, params=params, timeout=Config.API_TIMEOUT)
+            response = await client.get(self.openalex_api_url, params=params)
             response.raise_for_status()
             
             data = response.json()
@@ -456,8 +486,8 @@ class APIManager:
         except:
             return ''
     
-    def fetch_doaj(self, query: str, max_results: int = None) -> List[Dict]:
-        """DOAJ API - Directory of Open Access Journals"""
+    async def fetch_doaj(self, query: str, client: httpx.AsyncClient, max_results: int = None) -> List[Dict]:
+        """DOAJ API - Directory of Open Access Journals (async)"""
         max_results = max_results or Config.MAX_PAPERS_PER_API
         
         cached = self.load_cached(query, 'doaj')
@@ -473,7 +503,7 @@ class APIManager:
                 'pageSize': max_results
             }
             
-            response = self.session.get(self.doaj_api_url, params=params, timeout=Config.API_TIMEOUT)
+            response = await client.get(self.doaj_api_url, params=params)
             response.raise_for_status()
             
             data = response.json()
@@ -507,8 +537,8 @@ class APIManager:
             search_progress.update_status('doaj', 'failed', 0)
             return []
     
-    def fetch_europe_pmc(self, query: str, max_results: int = None) -> List[Dict]:
-        """Europe PMC API - Open science platform for life sciences"""
+    async def fetch_europe_pmc(self, query: str, client: httpx.AsyncClient, max_results: int = None) -> List[Dict]:
+        """Europe PMC API - Open science platform for life sciences (async)"""
         max_results = max_results or Config.MAX_PAPERS_PER_API
         
         cached = self.load_cached(query, 'europe_pmc')
@@ -526,7 +556,7 @@ class APIManager:
                 'resultType': 'core'
             }
             
-            response = self.session.get(self.europe_pmc_api_url, params=params, timeout=Config.API_TIMEOUT)
+            response = await client.get(self.europe_pmc_api_url, params=params)
             response.raise_for_status()
             
             data = response.json()
@@ -559,31 +589,22 @@ class APIManager:
             search_progress.update_status('europe_pmc', 'failed', 0)
             return []
     
-    # ==================== PARALLEL FETCH METHOD ====================
+    # ==================== ASYNC PARALLEL FETCH METHOD ====================
     
-    def fetch_papers_parallel(self, query: str, apis: List[str] = None) -> List[Dict]:
+    async def fetch_papers_parallel(self, query: str, apis: List[str] = None) -> List[Dict]:
         """
-        ⚡ PARALLEL API FETCHING - Core Performance Optimization
-        Uses ThreadPoolExecutor to fetch from all APIs simultaneously
-        Target: Reduce search time from 20-30s to ~5s
+        ⚡ ASYNC PARALLEL API FETCHING - Core Performance Optimization
+        Uses asyncio.gather() with per-API timeouts for true concurrent I/O.
+        Worst-case wall time = max(individual timeouts) ≈ 10 seconds.
         """
+        # Normalize query for consistent cache keys across all APIs
+        query = query.lower().strip()
+        
         if apis is None:
             apis = [
                 'arxiv', 'pubmed', 'semantic_scholar', 'core',
                 'crossref', 'openalex', 'doaj', 'europe_pmc'
             ]
-        
-        # API method mapping
-        api_methods = {
-            'arxiv': self.fetch_arxiv,
-            'pubmed': self.fetch_pubmed,
-            'semantic_scholar': self.fetch_semantic_scholar,
-            'core': self.fetch_core,
-            'crossref': self.fetch_crossref,
-            'openalex': self.fetch_openalex,
-            'doaj': self.fetch_doaj,
-            'europe_pmc': self.fetch_europe_pmc
-        }
         
         all_papers = []
         
@@ -591,35 +612,71 @@ class APIManager:
         search_progress.start()
         
         print(f"\n{'='*60}")
-        print(f"🚀 Starting PARALLEL search for: '{query}'")
+        print(f"[>>] Starting ASYNC PARALLEL search for: '{query}'")
         print(f"   Fetching from {len(apis)} APIs simultaneously...")
+        print(f"   Per-API timeouts: {', '.join(f'{a}={API_TIMEOUTS[a]}s' for a in apis if a in API_TIMEOUTS)}")
         print(f"{'='*60}\n")
         
         start_time = time.time()
         
-        # Execute API calls in parallel
-        with ThreadPoolExecutor(max_workers=Config.MAX_WORKERS) as executor:
-            # Submit all API fetch tasks
-            future_to_api = {
-                executor.submit(api_methods[api], query): api 
-                for api in apis if api in api_methods
+        # Create a single shared httpx async client for all HTTP-based APIs
+        async with httpx.AsyncClient(
+            headers=self._async_headers,
+            follow_redirects=True,
+            timeout=httpx.Timeout(30.0)  # Safety net; per-API timeouts via wait_for control actual limits
+        ) as client:
+            
+            async def safe_fetch(api_name: str, coro) -> List[Dict]:
+                """Wrap a fetch coroutine with per-API timeout and error handling"""
+                api_start = time.time()
+                try:
+                    result = await asyncio.wait_for(coro, timeout=API_TIMEOUTS.get(api_name, 10))
+                    elapsed = time.time() - api_start
+                    if result:
+                        print(f"  [+] {self.api_display_names.get(api_name, api_name)}: "
+                              f"{len(result)} papers ({elapsed:.1f}s)")
+                    else:
+                        print(f"  [!] {self.api_display_names.get(api_name, api_name)}: "
+                              f"0 papers ({elapsed:.1f}s)")
+                    return result or []
+                except asyncio.TimeoutError:
+                    elapsed = time.time() - api_start
+                    print(f"  [TIMEOUT] {self.api_display_names.get(api_name, api_name)}: "
+                          f"timed out after {elapsed:.1f}s (limit: {API_TIMEOUTS.get(api_name, 10)}s)")
+                    search_progress.update_status(api_name, 'timeout', 0)
+                    return []
+                except Exception as e:
+                    elapsed = time.time() - api_start
+                    print(f"  [X] {self.api_display_names.get(api_name, api_name)}: "
+                          f"Error - {e} ({elapsed:.1f}s)")
+                    search_progress.update_status(api_name, 'failed', 0)
+                    return []
+            
+            # Build coroutine map — sync libs wrapped in to_thread, HTTP APIs use async httpx
+            coro_map = {
+                'arxiv': safe_fetch('arxiv', asyncio.to_thread(self.fetch_arxiv, query)),
+                'pubmed': safe_fetch('pubmed', asyncio.to_thread(self.fetch_pubmed, query)),
+                'semantic_scholar': safe_fetch('semantic_scholar', self.fetch_semantic_scholar(query, client)),
+                'core': safe_fetch('core', self.fetch_core(query, client)),
+                'crossref': safe_fetch('crossref', self.fetch_crossref(query, client)),
+                'openalex': safe_fetch('openalex', self.fetch_openalex(query, client)),
+                'doaj': safe_fetch('doaj', self.fetch_doaj(query, client)),
+                'europe_pmc': safe_fetch('europe_pmc', self.fetch_europe_pmc(query, client)),
             }
             
-            # Collect results as they complete
-            for future in as_completed(future_to_api):
-                api = future_to_api[future]
-                try:
-                    papers = future.result()
-                    all_papers.extend(papers)
-                    print(f"  ✅ {self.api_display_names.get(api, api)}: {len(papers)} papers")
-                except Exception as e:
-                    print(f"  ❌ {self.api_display_names.get(api, api)}: Error - {e}")
-                    search_progress.update_status(api, 'failed', 0)
+            # Only gather requested APIs — all fire at the exact same time
+            tasks = [coro_map[api] for api in apis if api in coro_map]
+            results = await asyncio.gather(*tasks)
+            
+            # Collect all papers from completed APIs
+            for result in results:
+                if isinstance(result, list):
+                    all_papers.extend(result)
         
         elapsed = time.time() - start_time
         
         print(f"\n{'='*60}")
-        print(f"⏱️  Parallel fetch completed in {elapsed:.2f} seconds")
+        print(f"[TIME] Async parallel fetch completed in {elapsed:.2f} seconds")
         print(f"   Total papers before dedup: {len(all_papers)}")
         
         # Deduplicate papers using advanced matching
@@ -629,6 +686,14 @@ class APIManager:
         print(f"{'='*60}\n")
         
         return unique_papers[:Config.MAX_TOTAL_PAPERS]
+    
+    def fetch_papers_parallel_sync(self, query: str, apis: List[str] = None) -> List[Dict]:
+        """
+        Sync wrapper for Flask compatibility.
+        Bridges async fetch_papers_parallel into sync world via asyncio.run().
+        Safe to call from Flask request threads (threaded=True).
+        """
+        return asyncio.run(self.fetch_papers_parallel(query, apis))
     
     def _deduplicate_papers(self, papers: List[Dict]) -> List[Dict]:
         """
@@ -670,8 +735,8 @@ class APIManager:
     
     # Legacy method for backward compatibility
     def fetch_papers(self, query: str, apis: List[str] = None) -> List[Dict]:
-        """Backward compatible wrapper - uses parallel fetching"""
-        return self.fetch_papers_parallel(query, apis)
+        """Backward compatible wrapper - uses async parallel fetching"""
+        return self.fetch_papers_parallel_sync(query, apis)
 
 
 # Global instance

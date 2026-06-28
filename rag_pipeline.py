@@ -134,12 +134,12 @@ class RAGPipeline:
     def __init__(self):
         # LLM Router handles all AI generation with automatic provider fallback
         self.router = llm_router
-        print(f"🔄 RAG Pipeline using Multi-Provider LLM Router")
+        print("[RAG] Pipeline using Multi-Provider LLM Router")
         
         # Show provider status
         status = self.router.get_status()
         for pname, pinfo in status['providers'].items():
-            icon = '✅' if pinfo['available'] else '⚠️'
+            icon = '[OK]' if pinfo['available'] else '[--]'
             print(f"   {icon} {pname}: model={pinfo['model']}, available={pinfo['available']}")
         
         self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
@@ -168,10 +168,10 @@ class RAGPipeline:
         new_papers = self.faiss_manager.get_new_papers(papers)
         
         if not new_papers:
-            print("📊 All papers already indexed - reusing existing index")
+            print("[INDEX] All papers already indexed - reusing existing index")
             return 0
         
-        print(f"📊 Indexing {len(new_papers)} new papers...")
+        print(f"[INDEX] Indexing {len(new_papers)} new papers...")
         
         # Get abstracts for embedding
         abstracts = [p.get('abstract', '') or p.get('title', '') for p in new_papers]
@@ -296,21 +296,46 @@ class RAGPipeline:
         
         context = self._build_context(papers)
         
-        prompt = f"""You are an expert academic research assistant. Based on the following research papers, write a comprehensive, formal academic literature review about: {query}
+        prompt = f"""You are an expert academic research assistant. Based on the following research papers, produce a structured academic analysis about: {query}
 
 PAPERS:
 {context}
 
-IMPORTANT FORMATTING INSTRUCTIONS:
-- Write in formal academic English using continuous, well-structured paragraphs only.
-- Do NOT use any markdown formatting (no ##, **, *, -, etc.).
-- Do NOT use emojis, hashtags, bullet points, numbered lists, or section titles.
-- Do NOT use labels like "Paper 1" or "[1]". Instead, cite each paper using the (Author, Year) format based on the authors and year provided above. For example: (Smith et al., 2021).
-- The writing should read like a literature review section of a final year project or research paper.
-- Ensure the tone is natural, human-like, and suitable for academic publication.
-- Cover the following aspects seamlessly within the paragraphs: main research themes across the literature, key findings and significant contributions, common methodologies and research approaches, temporal trends and emerging directions, and an integrated synthesis of the current state of research.
-- Maintain coherence, clarity, and smooth transitions between ideas.
-- The review should be plagiarism-free and demonstrate critical analysis rather than mere description."""
+IMPORTANT FORMATTING RULES:
+Do NOT use Markdown symbols (no #, *, -, or bullet points).
+Do NOT use emojis.
+Use plain professional text only.
+Use clear section headings in BOLD UPPERCASE (e.g., AI ANALYSIS, LITERATURE SUMMARY).
+Each section must be written in continuous paragraph form.
+Keep formatting clean and suitable for a formal research report.
+Cite papers using (Author, Year) format.
+Avoid repetition and maintain academic rigor throughout.
+
+Required Structure:
+
+AI ANALYSIS
+Write a concise overall summary of the topic and key insights derived from the analyzed papers. Highlight the main trends, patterns, and the current state of knowledge in the field.
+
+LITERATURE SUMMARY
+Explain existing research and approaches in paragraph form. Cover traditional methods such as statistical analysis, experimental design, and simulation alongside modern AI-enhanced approaches such as machine learning and deep learning. Discuss key contributions from prior studies and cite relevant papers.
+
+RESEARCH GAPS
+Describe limitations and missing areas in current research. Address issues such as lack of scalability, data limitations, bias and interpretability concerns, lack of integration between methods, and real-world applicability challenges.
+
+COMPARISON OF STUDIES
+Compare different approaches and highlight strengths and weaknesses. Contrast traditional versus modern methods, qualitative versus quantitative approaches, and discuss the relative effectiveness and applicability of each approach.
+
+METHODOLOGIES
+Explain all methodologies clearly in paragraph form. Cover traditional methods, advanced AI methods, and emerging techniques such as hybrid models and mixed methods. Describe how each methodology contributes to the research field.
+
+APPLICATIONS AND IMPLICATIONS
+Describe practical uses and the impact of the research findings. Explain how the methodologies and findings can be applied in real-world settings and what implications they hold for the field.
+
+CHALLENGES AND LIMITATIONS
+Explain implementation difficulties and constraints. Discuss practical challenges such as computational cost, data availability requirements, expertise requirements, and scalability concerns.
+
+FUTURE DIRECTIONS
+Suggest future research opportunities. Identify promising areas for further investigation, potential methodological improvements, and emerging trends that warrant attention."""
 
         yield from self._stream_ai_response(prompt)
     
@@ -326,21 +351,46 @@ IMPORTANT FORMATTING INSTRUCTIONS:
         
         context = self._build_context(papers_to_analyze)
         
-        prompt = f"""You are an expert research mentor. Analyze these recent papers about "{query}" and write a comprehensive, formal academic research gap analysis.
+        prompt = f"""You are an expert research mentor. Analyze these recent papers about "{query}" and produce a structured academic research gap analysis.
 
 PAPERS:
 {context}
 
-IMPORTANT FORMATTING INSTRUCTIONS:
-- Write in formal academic English using continuous, well-structured paragraphs only.
-- Do NOT use any markdown formatting (no ##, **, *, -, etc.).
-- Do NOT use emojis, hashtags, bullet points, numbered lists, or section titles.
-- Do NOT use labels like "Paper 1" or "[1]". Instead, cite each paper using the (Author, Year) format based on the authors and year provided above. For example: (Smith et al., 2021).
-- The writing should read like a research gap analysis section of a final year project or research paper.
-- Ensure the tone is natural, human-like, and suitable for academic publication.
-- Cover the following aspects seamlessly within the paragraphs: unexplored research questions that have not been adequately addressed, methodological gaps and underutilised techniques, data and contextual gaps including missing populations or datasets, emerging opportunities and promising new research directions, and a recommended research agenda with specific proposed projects.
-- Maintain coherence, clarity, and smooth transitions between ideas.
-- Be specific, actionable, and demonstrate critical analysis."""
+IMPORTANT FORMATTING RULES:
+Do NOT use Markdown symbols (no #, *, -, or bullet points).
+Do NOT use emojis.
+Use plain professional text only.
+Use clear section headings in BOLD UPPERCASE (e.g., AI ANALYSIS, RESEARCH GAPS).
+Each section must be written in continuous paragraph form.
+Keep formatting clean and suitable for a formal research report.
+Cite papers using (Author, Year) format.
+Avoid repetition and maintain academic rigor throughout.
+
+Required Structure:
+
+AI ANALYSIS
+Provide a concise high-level summary of the current state of research on this topic and where the key gaps lie. Highlight the overall landscape and the most pressing unresolved questions.
+
+LITERATURE SUMMARY
+Briefly summarize what existing studies have covered, including key themes, principal findings, and methodologies employed. Cite relevant papers to support the summary.
+
+RESEARCH GAPS
+Identify specific limitations and missing areas in current research. Address unexplored research questions, methodological gaps and underutilized techniques, data and contextual gaps including missing populations and datasets, lack of scalability or real-world validation, bias and interpretability issues, and lack of integration between methods.
+
+COMPARISON OF STUDIES
+Compare and prioritize the identified gaps in terms of severity. Distinguish between critical gaps and minor gaps, short-term versus long-term research needs, and highlight gaps with the highest potential impact if addressed.
+
+METHODOLOGIES
+Explain the methodological approaches used across the analyzed studies and identify where methodological innovation is most needed to address the identified gaps.
+
+APPLICATIONS AND IMPLICATIONS
+Highlight promising new research directions and practical opportunities arising from these gaps. Describe how addressing these gaps could impact the field and real-world applications.
+
+CHALLENGES AND LIMITATIONS
+Discuss the practical challenges and constraints that make these gaps difficult to address, including resource limitations, data availability issues, and technical barriers.
+
+FUTURE DIRECTIONS
+Suggest specific, actionable research projects or studies to address the identified gaps. Provide a recommended research agenda with clear priorities."""
 
         yield from self._stream_ai_response(prompt)
     
@@ -356,25 +406,50 @@ IMPORTANT FORMATTING INSTRUCTIONS:
             methodology = self.text_processor.extract_methodology(paper.get('abstract', ''))
             comparison_entries.append(
                 f"Study {i+1}: {paper['title'][:100]}\n"
-                f"  - Year: {paper.get('year', 'N/A')}\n"
-                f"  - Methodology: {methodology}\n"
-                f"  - Citations: {paper.get('citation_count', 'N/A')}"
+                f"  Year: {paper.get('year', 'N/A')}\n"
+                f"  Methodology: {methodology}\n"
+                f"  Citations: {paper.get('citation_count', 'N/A')}"
             )
         
-        prompt = f"""You are an expert in systematic literature reviews. Compare these research studies and write a formal academic comparative analysis:
+        prompt = f"""You are an expert in systematic literature reviews. Compare these research studies and produce a structured academic comparative analysis:
 
 {chr(10).join(comparison_entries)}
 
-IMPORTANT FORMATTING INSTRUCTIONS:
-- Write in formal academic English using continuous, well-structured paragraphs only.
-- Do NOT use any markdown formatting (no ##, **, *, -, etc.).
-- Do NOT use emojis, hashtags, bullet points, numbered lists, or section titles.
-- Do NOT use labels like "Study 1" or "[1]". Instead, cite each study using the (Author, Year) format based on the authors and year provided above. For example: (Smith et al., 2021).
-- The writing should read like a comparative analysis section of a final year project or research paper.
-- Ensure the tone is natural, human-like, and suitable for academic publication.
-- Cover the following aspects seamlessly within the paragraphs: comparison of research designs, data sources, and analytical approaches across the studies, areas of agreement and divergence in findings, unique contributions and strengths of each study, common and study-specific limitations, and an overall synthesis drawing conclusions across all studies.
-- Maintain coherence, clarity, and smooth transitions between ideas.
-- Be balanced, evidence-based, and demonstrate critical analysis."""
+IMPORTANT FORMATTING RULES:
+Do NOT use Markdown symbols (no #, *, -, or bullet points).
+Do NOT use emojis.
+Use plain professional text only.
+Use clear section headings in BOLD UPPERCASE (e.g., AI ANALYSIS, COMPARISON OF STUDIES).
+Each section must be written in continuous paragraph form.
+Keep formatting clean and suitable for a formal research report.
+Cite studies using (Author, Year) format.
+Avoid repetition and maintain academic rigor throughout.
+
+Required Structure:
+
+AI ANALYSIS
+Provide a concise high-level overview of the studies being compared and the key takeaways from the comparative analysis.
+
+LITERATURE SUMMARY
+Summarize the collective body of work represented by these studies. Describe the research landscape, common themes, and the progression of knowledge across the studies.
+
+RESEARCH GAPS
+Identify gaps and limitations revealed through the comparison of these studies. Discuss areas where the collective research falls short and questions that remain unanswered.
+
+COMPARISON OF STUDIES
+Compare different approaches and methodologies across the studies. Contrast traditional versus modern methods, qualitative versus quantitative approaches, and identify key agreements and divergences between studies. Highlight the unique strengths and contributions of each study.
+
+METHODOLOGIES
+Explain the methodological approaches employed across the studies. Compare their research designs, data collection methods, and analytical techniques in paragraph form.
+
+APPLICATIONS AND IMPLICATIONS
+Describe the practical implications of the compared studies. Explain how the findings collectively contribute to the field and what applications emerge from the synthesis.
+
+CHALLENGES AND LIMITATIONS
+Discuss common and study-specific limitations. Address shared constraints across studies as well as individual weaknesses that affect the reliability and generalizability of findings.
+
+FUTURE DIRECTIONS
+Provide an overall synthesis drawing conclusions across all studies. Suggest which approaches are most promising and recommend future research directions based on the comparative analysis."""
 
         yield from self._stream_ai_response(prompt)
     
@@ -393,17 +468,42 @@ IMPORTANT FORMATTING INSTRUCTIONS:
 
 Existing methodologies found in literature: {methods_str}
 
-Suggest innovative and appropriate research methodologies in a formal academic writing style.
+Suggest innovative and appropriate research methodologies.
 
-IMPORTANT FORMATTING INSTRUCTIONS:
-- Write in formal academic English using continuous, well-structured paragraphs only.
-- Do NOT use any markdown formatting (no ##, **, *, -, etc.).
-- Do NOT use emojis, hashtags, bullet points, numbered lists, or section titles.
-- The writing should read like a methodology discussion section of a final year project or research paper.
-- Ensure the tone is natural, human-like, and suitable for academic publication.
-- Cover the following aspects seamlessly within the paragraphs: well-established traditional approaches with modern adaptations, cutting-edge and emerging methodologies, integrated mixed methods designs combining multiple approaches, computational and AI-enhanced research methods, and implementation recommendations including applicability, key requirements, and potential benefits and limitations for each suggested methodology.
-- Maintain coherence, clarity, and smooth transitions between ideas.
-- Be specific, practical, and demonstrate scholarly depth in your suggestions."""
+IMPORTANT FORMATTING RULES:
+Do NOT use Markdown symbols (no #, *, -, or bullet points).
+Do NOT use emojis.
+Use plain professional text only.
+Use clear section headings in BOLD UPPERCASE (e.g., AI ANALYSIS, METHODOLOGIES).
+Each section must be written in continuous paragraph form.
+Keep formatting clean and suitable for a formal research report.
+Avoid repetition and maintain academic rigor throughout.
+
+Required Structure:
+
+AI ANALYSIS
+Provide a concise high-level summary of the methodological landscape for this research topic. Highlight the most significant methodological trends and insights.
+
+LITERATURE SUMMARY
+Summarize the existing methodological approaches found in the literature. Describe what methods are currently being used, their prevalence, and key contributions from existing methodological research.
+
+RESEARCH GAPS
+Identify methodological gaps in the current literature. Describe which techniques are underutilized, which research questions lack appropriate methodological frameworks, and where innovation is most needed.
+
+COMPARISON OF STUDIES
+Compare different methodological approaches across the literature. Contrast traditional versus modern methods, qualitative versus quantitative approaches, and simulation versus AI-based models. Highlight strengths, weaknesses, and appropriate use cases for each approach.
+
+METHODOLOGIES
+Explain all recommended methodologies clearly in paragraph form. Cover traditional methods including well-established approaches with modern adaptations such as statistical analysis, experimental designs, and surveys. Discuss advanced AI methods including machine learning, deep learning, computational approaches, and predictive analytics. Address emerging techniques such as hybrid models combining multiple approaches, mixed methods designs integrating qualitative and quantitative data, and cutting-edge innovative methodologies.
+
+APPLICATIONS AND IMPLICATIONS
+Explain how these methodologies impact the research field and real-world applications. Describe the practical value of adopting these methodological approaches.
+
+CHALLENGES AND LIMITATIONS
+Discuss practical challenges including computational cost, data availability requirements, expertise and infrastructure requirements, and scalability concerns.
+
+FUTURE DIRECTIONS
+Suggest potential methodological improvements and emerging research areas. Identify the most promising directions for methodological innovation."""
 
         yield from self._stream_ai_response(prompt)
     
@@ -424,14 +524,14 @@ IMPORTANT FORMATTING INSTRUCTIONS:
             
             # Log which provider was used
             provider = self.router.last_provider_used or 'unknown'
-            print(f"✅ AI response streamed via: {provider}")
+            print(f"[OK] AI response streamed via: {provider}")
             
         except Exception as e:
             # This should never happen (router handles all errors), but just in case
-            print(f"❌ Unexpected router error: {e}")
+            print(f"[ERROR] Unexpected router error: {e}")
             yield (
-                "\n\n---\n*⚠️ An unexpected error occurred. "
-                "Please try again or check your API configuration.*"
+                "\n\nNote: An unexpected error occurred. "
+                "Please try again or check your API configuration."
             )
     
     # ==================== NON-STREAMING METHODS (for backward compatibility) ====================
@@ -459,7 +559,7 @@ IMPORTANT FORMATTING INSTRUCTIONS:
         if not papers:
             return {"error": "No papers found for the given query.", "success": False}
         
-        print(f"\n🔄 Processing query: '{query}' | Feature: {feature}")
+        print(f"\n[RAG] Processing query: '{query}' | Feature: {feature}")
         
         # Update FAISS index with new papers only
         new_count = self.update_faiss_index(papers)

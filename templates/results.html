@@ -133,19 +133,75 @@
                             <i class="fas fa-print me-1"></i> Print
                         </button>
                     </div>
-                    <div class="analysis-content markdown-body" id="analysisContent">
-                        <!-- Will be rendered by marked.js -->
+                    <div class="analysis-content academic-body" id="analysisContent">
+                        <!-- Will be rendered as plain academic text -->
                     </div>
-                    <!-- Raw markdown stored here for JS rendering -->
-                    <script id="rawMarkdown" type="text/plain">{{ result.result }}</script>
+                    <!-- Raw text stored here for JS rendering -->
+                    <script id="rawAnalysis" type="text/plain">{{ result.result }}</script>
                     <script>
                         (function () {
-                            var raw = document.getElementById('rawMarkdown').textContent;
-                            if (typeof marked !== 'undefined' && raw && raw.trim()) {
-                                document.getElementById('analysisContent').innerHTML = marked.parse(raw);
-                            } else {
-                                document.getElementById('analysisContent').innerHTML = raw.replace(/\n/g, '<br>');
+                            var raw = document.getElementById('rawAnalysis').textContent;
+                            if (!raw || !raw.trim()) return;
+
+                            // Known section headings to detect
+                            var sectionHeadings = [
+                                'AI ANALYSIS',
+                                'LITERATURE SUMMARY',
+                                'RESEARCH GAPS',
+                                'COMPARISON OF STUDIES',
+                                'METHODOLOGIES',
+                                'APPLICATIONS AND IMPLICATIONS',
+                                'CHALLENGES AND LIMITATIONS',
+                                'FUTURE DIRECTIONS'
+                            ];
+
+                            // Clean any remaining markdown symbols
+                            raw = raw.replace(/^#{1,6}\s*/gm, '');
+                            raw = raw.replace(/\*\*(.*?)\*\*/g, '$1');
+                            raw = raw.replace(/^\s*[\*\-]\s+/gm, '');
+                            raw = raw.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}]/gu, '');
+
+                            var html = '';
+                            var lines = raw.split('\n');
+                            var currentParagraph = '';
+
+                            for (var i = 0; i < lines.length; i++) {
+                                var line = lines[i].trim();
+
+                                // Check if line is a section heading
+                                var isHeading = false;
+                                for (var j = 0; j < sectionHeadings.length; j++) {
+                                    if (line === sectionHeadings[j] || line.toUpperCase() === sectionHeadings[j]) {
+                                        // Flush current paragraph
+                                        if (currentParagraph.trim()) {
+                                            html += '<p class="analysis-paragraph">' + currentParagraph.trim() + '</p>';
+                                            currentParagraph = '';
+                                        }
+                                        html += '<h3 class="section-heading">' + line.toUpperCase() + '</h3>';
+                                        isHeading = true;
+                                        break;
+                                    }
+                                }
+
+                                if (!isHeading) {
+                                    if (line === '') {
+                                        // End of paragraph
+                                        if (currentParagraph.trim()) {
+                                            html += '<p class="analysis-paragraph">' + currentParagraph.trim() + '</p>';
+                                            currentParagraph = '';
+                                        }
+                                    } else {
+                                        currentParagraph += (currentParagraph ? ' ' : '') + line;
+                                    }
+                                }
                             }
+
+                            // Flush last paragraph
+                            if (currentParagraph.trim()) {
+                                html += '<p class="analysis-paragraph">' + currentParagraph.trim() + '</p>';
+                            }
+
+                            document.getElementById('analysisContent').innerHTML = html;
                         })();
                     </script>
                 </div>

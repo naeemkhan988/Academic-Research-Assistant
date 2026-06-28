@@ -146,6 +146,64 @@ function updateApiStatus(apiKey, status, count = 0) {
 
 // ==================== STREAMING AI RESPONSE ====================
 
+// Helper: Parse plain academic text into styled HTML
+function parseAcademicText(text) {
+    var sectionHeadings = [
+        'AI ANALYSIS',
+        'LITERATURE SUMMARY',
+        'RESEARCH GAPS',
+        'COMPARISON OF STUDIES',
+        'METHODOLOGIES',
+        'APPLICATIONS AND IMPLICATIONS',
+        'CHALLENGES AND LIMITATIONS',
+        'FUTURE DIRECTIONS'
+    ];
+
+    // Clean any remaining markdown symbols
+    text = text.replace(/^#{1,6}\s*/gm, '');
+    text = text.replace(/\*\*(.*?)\*\*/g, '$1');
+    text = text.replace(/^\s*[\*\-]\s+/gm, '');
+    text = text.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}]/gu, '');
+
+    var html = '';
+    var lines = text.split('\n');
+    var currentParagraph = '';
+
+    for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].trim();
+
+        var isHeading = false;
+        for (var j = 0; j < sectionHeadings.length; j++) {
+            if (line.toUpperCase() === sectionHeadings[j]) {
+                if (currentParagraph.trim()) {
+                    html += '<p class="analysis-paragraph">' + currentParagraph.trim() + '</p>';
+                    currentParagraph = '';
+                }
+                html += '<h3 class="section-heading">' + line.toUpperCase() + '</h3>';
+                isHeading = true;
+                break;
+            }
+        }
+
+        if (!isHeading) {
+            if (line === '') {
+                if (currentParagraph.trim()) {
+                    html += '<p class="analysis-paragraph">' + currentParagraph.trim() + '</p>';
+                    currentParagraph = '';
+                }
+            } else {
+                currentParagraph += (currentParagraph ? ' ' : '') + line;
+            }
+        }
+    }
+
+    if (currentParagraph.trim()) {
+        html += '<p class="analysis-paragraph">' + currentParagraph.trim() + '</p>';
+    }
+
+    return html;
+}
+
 function initializeStreamingResponse(resultId) {
     const analysisContent = document.getElementById('analysisContent');
     if (!analysisContent || !resultId) return;
@@ -153,8 +211,8 @@ function initializeStreamingResponse(resultId) {
     // Clear existing content
     analysisContent.innerHTML = '<div class="streaming-cursor">▊</div>';
 
-    // Accumulate raw markdown text for proper rendering
-    let markdownBuffer = '';
+    // Accumulate raw text for proper rendering
+    let textBuffer = '';
 
     const eventSource = new EventSource(`/api/analyze/stream/${resultId}`);
 
@@ -163,34 +221,25 @@ function initializeStreamingResponse(resultId) {
 
         switch (data.type) {
             case 'start':
-                markdownBuffer = '';
+                textBuffer = '';
                 analysisContent.innerHTML = '';
                 break;
 
             case 'token':
-                // Accumulate raw markdown
-                markdownBuffer += data.content;
+                // Accumulate raw text
+                textBuffer += data.content;
 
-                // Render full markdown buffer as HTML using marked.js
-                if (typeof marked !== 'undefined') {
-                    analysisContent.innerHTML = marked.parse(markdownBuffer) +
-                        '<span class="streaming-cursor">▊</span>';
-                } else {
-                    analysisContent.innerHTML = markdownBuffer.replace(/\n/g, '<br>') +
-                        '<span class="streaming-cursor">▊</span>';
-                }
+                // Render full buffer as academic HTML
+                analysisContent.innerHTML = parseAcademicText(textBuffer) +
+                    '<span class="streaming-cursor">▊</span>';
 
                 // Auto-scroll to bottom
                 analysisContent.scrollTop = analysisContent.scrollHeight;
                 break;
 
             case 'complete':
-                // Final render — remove cursor and do a clean markdown parse
-                if (typeof marked !== 'undefined') {
-                    analysisContent.innerHTML = marked.parse(markdownBuffer);
-                } else {
-                    analysisContent.innerHTML = markdownBuffer.replace(/\n/g, '<br>');
-                }
+                // Final render — remove cursor and do a clean parse
+                analysisContent.innerHTML = parseAcademicText(textBuffer);
                 eventSource.close();
                 break;
 
@@ -204,8 +253,8 @@ function initializeStreamingResponse(resultId) {
     eventSource.onerror = function () {
         eventSource.close();
         // Final render on error
-        if (markdownBuffer && typeof marked !== 'undefined') {
-            analysisContent.innerHTML = marked.parse(markdownBuffer);
+        if (textBuffer) {
+            analysisContent.innerHTML = parseAcademicText(textBuffer);
         }
         const cursor = analysisContent.querySelector('.streaming-cursor');
         if (cursor) cursor.remove();

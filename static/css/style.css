@@ -52,10 +52,16 @@
 }
 
 /* ==================== BASE STYLES ==================== */
-* {
+*, *::before, *::after {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+}
+
+html, body {
+    width: 100%;
+    min-height: 100vh;
+    overflow-x: hidden;
 }
 
 html {
@@ -67,8 +73,6 @@ body {
     background-color: var(--bg-primary);
     color: var(--text-primary);
     line-height: 1.6;
-    min-height: 100vh;
-    overflow-x: hidden;
 }
 
 /* ==================== ANIMATED BACKGROUND ==================== */
@@ -76,8 +80,9 @@ body {
     position: fixed;
     top: 0;
     left: 0;
-    width: 100%;
-    height: 100%;
+    right: 0;
+    width: 100vw;
+    height: 100vh;
     z-index: -1;
     overflow: hidden;
     background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 50%, var(--bg-tertiary) 100%);
@@ -197,7 +202,14 @@ body {
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-bottom: 1px solid var(--glass-border);
-    padding: var(--space-sm) 0;
+    padding: 0 2rem;
+    width: 100%;
+}
+
+.glass-nav .container {
+    max-width: 100%;
+    width: 100%;
+    padding: 0;
 }
 
 .glass-footer {
@@ -284,11 +296,23 @@ body {
 .main-content {
     padding-top: 80px;
     min-height: calc(100vh - 150px);
+    width: 100%;
+}
+
+.main-content > .container {
+    max-width: 100%;
+    width: 100%;
+    padding: 0 !important;
 }
 
 /* ==================== HERO SECTION ==================== */
 .hero-section {
-    padding: var(--space-2xl) 0;
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
 }
 
 .hero-content {
@@ -364,7 +388,8 @@ body {
 
 /* ==================== SEARCH FORM ==================== */
 .search-card {
-    max-width: 800px;
+    max-width: 900px;
+    width: 90%;
     margin: 0 auto;
 }
 
@@ -408,14 +433,8 @@ body {
 /* Feature Grid */
 .feature-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: var(--space-md);
-}
-
-@media (min-width: 768px) {
-    .feature-grid {
-        grid-template-columns: repeat(4, 1fr);
-    }
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
 }
 
 .feature-option {
@@ -427,6 +446,8 @@ body {
 }
 
 .feature-card {
+    width: 100%;
+    min-height: 100px;
     background: rgba(0, 0, 0, 0.2);
     border: 2px solid var(--glass-border);
     border-radius: var(--radius-md);
@@ -799,6 +820,40 @@ body {
     gap: var(--space-sm);
 }
 
+/* ==================== RESPONSIVE BREAKPOINTS ==================== */
+
+/* Large screens 1920px+ */
+@media (min-width: 1920px) {
+  .hero-title { font-size: 5rem; }
+  .search-card { max-width: 1100px; }
+}
+
+/* Tablet 768px-1023px */
+@media (max-width: 1023px) {
+  .hero-title { font-size: 2.8rem; }
+  .feature-grid { grid-template-columns: repeat(2, 1fr); }
+  .search-card { width: 95%; padding: 1.5rem; }
+}
+
+/* Mobile 375px-767px */
+@media (max-width: 767px) {
+  .hero-title { font-size: 2rem; }
+  .hero-subtitle { font-size: 0.95rem; }
+  .feature-pills { flex-wrap: wrap; gap: 6px; }
+  .feature-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .feature-card { padding: 0.75rem; }
+  #submitBtn { width: 100%; font-size: 1rem; padding: 1rem 2rem; }
+  .search-card { width: 100%; border-radius: 0; padding: 1.25rem; }
+  nav .navbar-nav { display: none; }
+  .glass-nav { padding: 0 1rem; }
+}
+
+/* Very small phones 320px */
+@media (max-width: 375px) {
+  .hero-title { font-size: 1.7rem; }
+  .feature-grid { grid-template-columns: 1fr; }
+}
+
 .analysis-content {
     line-height: 1.8;
     font-size: 1rem;
@@ -810,6 +865,36 @@ body {
     color: var(--accent);
     margin-top: var(--space-xl);
     margin-bottom: var(--space-md);
+}
+
+/* Academic Body Styles */
+.academic-body .section-heading {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 2rem;
+    margin-bottom: 0.8rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid rgba(0, 212, 170, 0.25);
+    padding-left: 0.75rem;
+    border-left: 3px solid var(--accent);
+    font-family: var(--font-primary);
+}
+
+.academic-body .section-heading:first-child {
+    margin-top: 0;
+}
+
+.academic-body .analysis-paragraph {
+    font-size: 0.98rem;
+    line-height: 1.9;
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+    text-align: justify;
+    text-justify: inter-word;
+    font-family: var(--font-primary);
 }
 
 /* Papers Grid */

@@ -456,6 +456,56 @@ class PDFExporter:
             spaceAfter=6,
             textColor=colors.HexColor('#333333')
         ))
+        
+        self.styles.add(ParagraphStyle(
+            name='SubHeading',
+            parent=self.styles['Heading3'],
+            fontSize=11,
+            textColor=colors.HexColor('#00968c'),
+            spaceAfter=6,
+            spaceBefore=8,
+            fontName='Helvetica-Bold'
+        ))
+        
+        self.styles.add(ParagraphStyle(
+            name='BulletItem',
+            parent=self.styles['Normal'],
+            fontSize=10,
+            leftIndent=24,
+            spaceAfter=3,
+            textColor=colors.HexColor('#333333')
+        ))
+    
+    def _markdown_to_reportlab(self, text: str) -> str:
+        """Convert markdown inline formatting to ReportLab-compatible HTML tags.
+        
+        ReportLab's Paragraph supports a subset of HTML including <b>, <i>, <font>, <br/>.
+        This converts markdown syntax to those tags for proper PDF rendering.
+        """
+        if not text:
+            return ""
+        
+        # Escape XML special characters first (before adding our own HTML tags)
+        text = text.replace('&', '&amp;')
+        text = text.replace('<', '&lt;')
+        text = text.replace('>', '&gt;')
+        
+        # Convert inline formatting (order matters: *** before ** before *)
+        # Bold italic: ***text***
+        text = re.sub(r'\*\*\*(.+?)\*\*\*', r'<b><i>\1</i></b>', text)
+        # Bold: **text**
+        text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
+        # Italic: *text* (avoid matching lone * used as bullet or multiplication)
+        text = re.sub(r'(?<!\*)\*([^\*\n]+?)\*(?!\*)', r'<i>\1</i>', text)
+        # Inline code: `text`
+        text = re.sub(r'`([^`]+?)`', r'<font face="Courier">\1</font>', text)
+        
+        # Safety fallback: strip any remaining raw markdown symbols
+        text = text.replace('**', '')
+        text = text.replace('##', '')
+        text = text.replace('# ', '')
+        
+        return text
     
     def export_to_pdf(self, content: Dict[str, Any], query: str, feature: str) -> str:
         """Export analysis results to enhanced PDF"""
@@ -506,24 +556,63 @@ class PDFExporter:
         
         result_text = content.get('result', 'No results generated.')
         
-        # Process markdown-like formatting
+        # Process markdown-formatted LLM response into styled PDF paragraphs
         result_paragraphs = result_text.split('\n')
         for para in result_paragraphs:
             para = para.strip()
-            if para:
-                # Handle headers
-                if para.startswith('## '):
-                    story.append(Spacer(1, 8))
-                    story.append(Paragraph(para[3:], self.styles['CustomHeading']))
-                elif para.startswith('# '):
-                    story.append(Spacer(1, 8))
-                    story.append(Paragraph(para[2:], self.styles['Heading2']))
-                else:
-                    # Handle bullet points
-                    if para.startswith('- ') or para.startswith('• '):
-                        para = '• ' + para[2:]
-                    story.append(Paragraph(para, self.styles['Normal']))
+            if not para:
+                # Blank line = paragraph break
+                story.append(Spacer(1, 6))
+                continue
+            
+            # Horizontal rules (---, ***, ___)
+            if re.match(r'^[-*_]{3,}$', para):
                 story.append(Spacer(1, 4))
+                rule = Table([['']], colWidths=[6*inch], rowHeights=[1])
+                rule.setStyle(TableStyle([
+                    ('LINEBELOW', (0, 0), (-1, -1), 0.5, colors.HexColor('#cccccc'))
+                ]))
+                story.append(rule)
+                story.append(Spacer(1, 4))
+                continue
+            
+            # Headers: match # through ###### (regex handles all levels)
+            header_match = re.match(r'^(#{1,6})\s+(.*)', para)
+            if header_match:
+                level = len(header_match.group(1))
+                text = self._markdown_to_reportlab(header_match.group(2))
+                if level == 1:
+                    style = self.styles['Heading2']
+                elif level == 2:
+                    style = self.styles['CustomHeading']
+                else:
+                    style = self.styles['SubHeading']
+                story.append(Spacer(1, 8 if level <= 2 else 5))
+                story.append(Paragraph(text, style))
+                story.append(Spacer(1, 3))
+                continue
+            
+            # Bullet points: - item, * item, • item
+            if re.match(r'^[-*\u2022]\s+', para):
+                bullet_text = re.sub(r'^[-*\u2022]\s+', '', para)
+                text = self._markdown_to_reportlab(bullet_text)
+                story.append(Paragraph(f'\u2022  {text}', self.styles['BulletItem']))
+                story.append(Spacer(1, 2))
+                continue
+            
+            # Numbered lists: 1. item, 2) item, etc.
+            num_match = re.match(r'^(\d+[.\)])\s+(.*)', para)
+            if num_match:
+                num = num_match.group(1)
+                text = self._markdown_to_reportlab(num_match.group(2))
+                story.append(Paragraph(f'<b>{num}</b>  {text}', self.styles['BulletItem']))
+                story.append(Spacer(1, 2))
+                continue
+            
+            # Regular paragraph — convert inline markdown to ReportLab HTML
+            text = self._markdown_to_reportlab(para)
+            story.append(Paragraph(text, self.styles['Normal']))
+            story.append(Spacer(1, 3))
         
         story.append(Spacer(1, 16))
         

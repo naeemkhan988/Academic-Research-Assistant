@@ -40,7 +40,7 @@ def index():
         try:
             # Fetch papers using parallel API calls
             start_time = time.time()
-            papers = api_manager.fetch_papers_parallel(query)
+            papers = api_manager.fetch_papers_parallel_sync(query)
             fetch_time = time.time() - start_time
             
             if not papers:
