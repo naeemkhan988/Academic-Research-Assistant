@@ -312,7 +312,14 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0;
+    padding: 2rem 0;
+}
+
+.hero-inner {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 2rem;
 }
 
 .hero-content {
@@ -824,34 +831,46 @@ body {
 
 /* Large screens 1920px+ */
 @media (min-width: 1920px) {
-  .hero-title { font-size: 5rem; }
-  .search-card { max-width: 1100px; }
+    .hero-title { font-size: 5rem; }
+    .hero-inner { max-width: 1400px; }
+    .search-card { max-width: 1100px; }
+    .hero-description { max-width: 800px; font-size: 1.25rem; }
 }
+
+/* Standard laptop 1024px-1919px — default styles apply */
 
 /* Tablet 768px-1023px */
 @media (max-width: 1023px) {
-  .hero-title { font-size: 2.8rem; }
-  .feature-grid { grid-template-columns: repeat(2, 1fr); }
-  .search-card { width: 95%; padding: 1.5rem; }
+    .hero-title { font-size: 2.8rem; }
+    .hero-inner { padding: 0 1.5rem; }
+    .feature-grid { grid-template-columns: repeat(2, 1fr); }
+    .search-card { width: 95%; padding: 1.5rem; }
 }
 
 /* Mobile 375px-767px */
 @media (max-width: 767px) {
-  .hero-title { font-size: 2rem; }
-  .hero-subtitle { font-size: 0.95rem; }
-  .feature-pills { flex-wrap: wrap; gap: 6px; }
-  .feature-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
-  .feature-card { padding: 0.75rem; }
-  #submitBtn { width: 100%; font-size: 1rem; padding: 1rem 2rem; }
-  .search-card { width: 100%; border-radius: 0; padding: 1.25rem; }
-  nav .navbar-nav { display: none; }
-  .glass-nav { padding: 0 1rem; }
+    .hero-section { padding: 1rem 0; }
+    .hero-inner { padding: 0 1rem; }
+    .hero-title { font-size: 2rem; }
+    .hero-subtitle { font-size: 0.95rem; }
+    .hero-description { font-size: 0.95rem; }
+    .feature-pills { flex-wrap: wrap; gap: 6px; }
+    .feature-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .feature-card { padding: 0.75rem; min-height: 80px; }
+    .feature-icon { font-size: 1.4rem; }
+    .feature-name { font-size: 0.8rem; }
+    .feature-desc { font-size: 0.65rem; }
+    #submitBtn { width: 100%; font-size: 1rem; padding: 1rem 2rem; }
+    .search-card { width: 100%; border-radius: 12px; padding: 1.25rem; }
+    .glass-nav { padding: 0 1rem; }
+    .glass-card:hover { transform: none; }
 }
 
 /* Very small phones 320px */
 @media (max-width: 375px) {
-  .hero-title { font-size: 1.7rem; }
-  .feature-grid { grid-template-columns: 1fr; }
+    .hero-title { font-size: 1.7rem; }
+    .feature-grid { grid-template-columns: 1fr; }
+    .search-card { padding: 1rem; }
 }
 
 .analysis-content {
