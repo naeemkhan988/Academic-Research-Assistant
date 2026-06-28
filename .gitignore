@@ -25,10 +25,8 @@ env/
 
 # ========================
 # FAISS Index & Metadata DB
+# (NOT ignored — HF Spaces needs these files)
 # ========================
-faiss_index.index
-faiss_metadata.json
-metadata.db
 
 # ========================
 # Cache & Generated Files
@@ -64,4 +62,4 @@ desktop.ini
 # ========================
 # Misc
 # ========================
-.agent/
+.agent/
