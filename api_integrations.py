@@ -100,7 +100,7 @@ class APIManager:
         self.core_api_url = "https://api.core.ac.uk/v3/search/works"
         self.crossref_api_url = "https://api.crossref.org/works"
         self.openalex_api_url = "https://api.openalex.org/works"
-        self.doaj_api_url = "https://doaj.org/api/search/articles"
+        self.doaj_api_url = "https://doaj.org/api/v4/search/articles/"
         self.europe_pmc_api_url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
         
         # API display names for progress tracking
@@ -271,7 +271,7 @@ class APIManager:
             params = {
                 'query': query,
                 'limit': max_results,
-                'fields': 'title,abstract,authors,year,doi,venue,url,citationCount'
+                'fields': 'title,abstract,authors,year,externalIds,venue,url,citationCount'
             }
             
             headers = {}
@@ -279,6 +279,13 @@ class APIManager:
                 headers['x-api-key'] = Config.SEMANTIC_SCHOLAR_API_KEY
             
             response = await client.get(url, params=params, headers=headers)
+            
+            # Handle rate limiting explicitly before raise_for_status
+            if response.status_code == 429:
+                print(f"Semantic Scholar API rate limited (429). Consider getting a free API key.")
+                search_progress.update_status('semantic_scholar', 'rate_limited', 0)
+                return []
+            
             response.raise_for_status()
             
             data = response.json()
@@ -290,7 +297,7 @@ class APIManager:
                     'abstract': item.get('abstract', '') or '',
                     'authors': [author.get('name', '') for author in item.get('authors', []) if author.get('name')],
                     'year': item.get('year'),
-                    'doi': item.get('doi'),
+                    'doi': item.get('externalIds', {}).get('DOI'),
                     'venue': item.get('venue'),
                     'url': item.get('url'),
                     'citation_count': item.get('citationCount', 0) or 0
@@ -498,12 +505,12 @@ class APIManager:
         search_progress.update_status('doaj', 'searching')
         
         try:
+            url = f"https://doaj.org/api/v4/search/articles/{quote(query)}"
             params = {
-                'q': query,
                 'pageSize': max_results
             }
             
-            response = await client.get(self.doaj_api_url, params=params)
+            response = await client.get(url, params=params)
             response.raise_for_status()
             
             data = response.json()

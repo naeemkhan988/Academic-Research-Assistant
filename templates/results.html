@@ -155,11 +155,40 @@
                                 'FUTURE DIRECTIONS'
                             ];
 
-                            // Clean any remaining markdown symbols
+                            // Clean encoding artifacts / mojibake
+                            raw = raw.replace(/â€“/g, ' ');
+                            raw = raw.replace(/â€”/g, ' ');
+                            raw = raw.replace(/â€™/g, "'");
+                            raw = raw.replace(/â€˜/g, "'");
+                            raw = raw.replace(/â€œ/g, '"');
+                            raw = raw.replace(/â€/g, '"');
+                            raw = raw.replace(/â/g, ' ');
+                            raw = raw.replace(/NaÃ¯ve/g, 'Naive');
+                            raw = raw.replace(/naÃ¯ve/g, 'naive');
+                            raw = raw.replace(/Ã¯/g, 'i');
+
+                            // Remove macrons, overlines, and control characters
+                            raw = raw.replace(/[¯\u00AF\u02C9\u0304]/g, '');
+                            raw = raw.replace(/[\u0000-\u001F\u007F-\u009F\u200B-\u200F\uFEFF\uFFFD\u2580-\u259F\u25A0-\u25FF\u2B1B-\u2B1F]/g, ' ');
+
+                            // Remove hyphens inside compound words (e.g., Cross-lingual -> Cross lingual)
+                            raw = raw.replace(/(\w+)[-\u2010-\u2015](\w+)/g, '$1 $2');
+                            raw = raw.replace(/[-\u2010-\u2015]+/g, ' ');
+
+                            // Clean any remaining markdown symbols, vertical bars, or artifacts
+                            raw = raw.replace(/\|+/g, ' ');
                             raw = raw.replace(/^#{1,6}\s*/gm, '');
                             raw = raw.replace(/\*\*(.*?)\*\*/g, '$1');
                             raw = raw.replace(/^\s*[\*\-]\s+/gm, '');
                             raw = raw.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}]/gu, '');
+
+                            // Pre-format all section headings onto their own isolated lines even if embedded mid-text
+                            for (var j = 0; j < sectionHeadings.length; j++) {
+                                var headingRegex = new RegExp('(?:\\s*|^)(?:\\d+[\\.\\)]\\s*)?(?:#+\\s*)?(?:\\*\\*)?' + sectionHeadings[j] + '(?::|\\s*-\\s*)?(?:\\*\\*)?(?=\\s+[A-Z0-9]|$)', 'gi');
+                                raw = raw.replace(headingRegex, '\n\n' + sectionHeadings[j] + '\n');
+                            }
+
+                            raw = raw.replace(/[ \t]{2,}/g, ' ');
 
                             var html = '';
                             var lines = raw.split('\n');
@@ -168,31 +197,29 @@
                             for (var i = 0; i < lines.length; i++) {
                                 var line = lines[i].trim();
 
-                                // Check if line is a section heading
+                                if (!line) {
+                                    if (currentParagraph.trim()) {
+                                        html += '<p class="analysis-paragraph">' + currentParagraph.trim() + '</p>';
+                                        currentParagraph = '';
+                                    }
+                                    continue;
+                                }
+
                                 var isHeading = false;
                                 for (var j = 0; j < sectionHeadings.length; j++) {
-                                    if (line === sectionHeadings[j] || line.toUpperCase() === sectionHeadings[j]) {
-                                        // Flush current paragraph
+                                    if (line.toUpperCase() === sectionHeadings[j]) {
                                         if (currentParagraph.trim()) {
                                             html += '<p class="analysis-paragraph">' + currentParagraph.trim() + '</p>';
                                             currentParagraph = '';
                                         }
-                                        html += '<h3 class="section-heading">' + line.toUpperCase() + '</h3>';
+                                        html += '<h3 class="section-heading">' + sectionHeadings[j] + '</h3>';
                                         isHeading = true;
                                         break;
                                     }
                                 }
 
                                 if (!isHeading) {
-                                    if (line === '') {
-                                        // End of paragraph
-                                        if (currentParagraph.trim()) {
-                                            html += '<p class="analysis-paragraph">' + currentParagraph.trim() + '</p>';
-                                            currentParagraph = '';
-                                        }
-                                    } else {
-                                        currentParagraph += (currentParagraph ? ' ' : '') + line;
-                                    }
+                                    currentParagraph += (currentParagraph ? ' ' : '') + line;
                                 }
                             }
 

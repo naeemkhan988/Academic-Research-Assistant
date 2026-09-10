@@ -194,13 +194,13 @@ class ResearchGapAnalyzer:
             method_counts = [methods[m] for m in method_names]
             bars = ax1.barh(method_names, method_counts, color=colors_palette[:len(method_names)])
             ax1.set_xlabel('Count')
-            ax1.set_title('🧪 Methodology Distribution', fontweight='bold')
+            ax1.set_title('Methodology Distribution', fontweight='bold')
             for bar, count in zip(bars, method_counts):
                 ax1.text(bar.get_width() + 0.1, bar.get_y() + bar.get_height()/2, 
                         str(count), va='center', fontsize=9)
         else:
             ax1.text(0.5, 0.5, 'No methodology data', ha='center', va='center')
-            ax1.set_title('🧪 Methodology Distribution', fontweight='bold')
+            ax1.set_title('Methodology Distribution', fontweight='bold')
         
         # 2. Year Distribution (Top Right)
         ax2 = axes[0, 1]
@@ -212,11 +212,11 @@ class ResearchGapAnalyzer:
             ax2.plot(year_keys, year_values, color='#00d4c8', linewidth=2, marker='o')
             ax2.set_xlabel('Year')
             ax2.set_ylabel('Publications')
-            ax2.set_title('📈 Publication Timeline', fontweight='bold')
+            ax2.set_title('Publication Timeline', fontweight='bold')
             ax2.grid(True, alpha=0.3)
         else:
             ax2.text(0.5, 0.5, 'No year data', ha='center', va='center')
-            ax2.set_title('📈 Publication Timeline', fontweight='bold')
+            ax2.set_title('Publication Timeline', fontweight='bold')
         
         # 3. Domain Distribution (Bottom Left)
         ax3 = axes[1, 0]
@@ -226,17 +226,17 @@ class ResearchGapAnalyzer:
             domain_counts = [domains[d] for d in domain_names]
             wedges, texts, autotexts = ax3.pie(domain_counts, labels=domain_names, 
                                                autopct='%1.1f%%', colors=colors_palette[:len(domain_names)])
-            ax3.set_title('🎯 Research Domains', fontweight='bold')
+            ax3.set_title('Research Domains', fontweight='bold')
         else:
             ax3.text(0.5, 0.5, 'No domain data', ha='center', va='center')
-            ax3.set_title('🎯 Research Domains', fontweight='bold')
+            ax3.set_title('Research Domains', fontweight='bold')
         
         # 4. Gap Analysis Summary (Bottom Right)
         ax4 = axes[1, 1]
         ax4.axis('off')
         gaps = analysis.get('identified_gaps', [])
         
-        gap_text = f"📊 Analysis Summary\n\n"
+        gap_text = f"Analysis Summary\n\n"
         gap_text += f"Total Papers: {analysis['total_papers']}\n"
         year_range = analysis.get('year_range', (None, None))
         if year_range[0]:
@@ -244,7 +244,7 @@ class ResearchGapAnalyzer:
         gap_text += f"Methods Found: {len(analysis['method_distribution'])}\n"
         gap_text += f"Domains Covered: {len(analysis['domain_distribution'])}\n\n"
         
-        gap_text += "🔍 Identified Gaps:\n"
+        gap_text += "Identified Gaps:\n"
         for gap in gaps[:3]:
             gap_text += f"• {gap}\n"
         
@@ -308,7 +308,7 @@ class VisualizationEngine:
         
         ax1.set_xlabel('Publication Year', fontsize=11)
         ax1.set_ylabel('Number of Papers', fontsize=11)
-        ax1.set_title(f'📊 Publication Distribution', fontsize=12, fontweight='bold')
+        ax1.set_title(f'Publication Distribution', fontsize=12, fontweight='bold')
         ax1.tick_params(axis='x', rotation=45)
         ax1.grid(True, alpha=0.2)
         
@@ -323,7 +323,7 @@ class VisualizationEngine:
         ax2.plot(sorted_years, cumulative, color=self.colors[1], linewidth=2.5, marker='o', markersize=4)
         ax2.set_xlabel('Publication Year', fontsize=11)
         ax2.set_ylabel('Cumulative Publications', fontsize=11)
-        ax2.set_title('📈 Cumulative Research Growth', fontsize=12, fontweight='bold')
+        ax2.set_title('Cumulative Research Growth', fontsize=12, fontweight='bold')
         ax2.grid(True, alpha=0.3)
         ax2.tick_params(axis='x', rotation=45)
         
@@ -361,7 +361,7 @@ class VisualizationEngine:
         
         bars = ax1.barh(methods, counts, color=self.colors[:len(methods)])
         ax1.set_xlabel('Frequency', fontsize=11)
-        ax1.set_title('🧪 Research Methodologies', fontsize=12, fontweight='bold')
+        ax1.set_title('Research Methodologies', fontsize=12, fontweight='bold')
         
         for bar, count in zip(bars, counts):
             ax1.text(bar.get_width() + 0.2, bar.get_y() + bar.get_height()/2,
@@ -371,7 +371,7 @@ class VisualizationEngine:
         wedges, texts, autotexts = ax2.pie(counts, labels=methods, autopct='%1.1f%%',
                                            colors=self.colors[:len(methods)],
                                            explode=[0.02]*len(methods))
-        ax2.set_title('📊 Methodology Distribution', fontsize=12, fontweight='bold')
+        ax2.set_title('Methodology Distribution', fontsize=12, fontweight='bold')
         
         plt.setp(autotexts, size=8, weight='bold')
         
@@ -407,7 +407,7 @@ class VisualizationEngine:
                                           colors=self.colors[:len(source_names)],
                                           explode=[0.02]*len(source_names))
         
-        ax.set_title('📚 Data Sources Distribution', fontsize=12, fontweight='bold')
+        ax.set_title('Data Sources Distribution', fontsize=12, fontweight='bold')
         plt.setp(autotexts, size=9, weight='bold')
         
         plt.tight_layout()
@@ -518,7 +518,7 @@ class PDFExporter:
         story = []
         
         # Title
-        title = Paragraph(f"📚 Research Analysis Report", self.styles['CustomTitle'])
+        title = Paragraph(f"Research Analysis Report", self.styles['CustomTitle'])
         story.append(title)
         story.append(Spacer(1, 8))
         
@@ -551,7 +551,7 @@ class PDFExporter:
         story.append(Spacer(1, 24))
         
         # Analysis Results
-        results_title = Paragraph("📊 Analysis Results", self.styles['CustomHeading'])
+        results_title = Paragraph("Analysis Results", self.styles['CustomHeading'])
         story.append(results_title)
         
         result_text = content.get('result', 'No results generated.')
@@ -618,7 +618,7 @@ class PDFExporter:
         
         # Top Papers with Citations
         if content.get('top_papers'):
-            papers_title = Paragraph("📑 Key Relevant Papers", self.styles['CustomHeading'])
+            papers_title = Paragraph("Key Relevant Papers", self.styles['CustomHeading'])
             story.append(papers_title)
             story.append(Spacer(1, 8))
             

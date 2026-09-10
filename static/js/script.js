@@ -159,11 +159,40 @@ function parseAcademicText(text) {
         'FUTURE DIRECTIONS'
     ];
 
-    // Clean any remaining markdown symbols
+    // Clean encoding artifacts / mojibake
+    text = text.replace(/â€“/g, ' ');
+    text = text.replace(/â€”/g, ' ');
+    text = text.replace(/â€™/g, "'");
+    text = text.replace(/â€˜/g, "'");
+    text = text.replace(/â€œ/g, '"');
+    text = text.replace(/â€/g, '"');
+    text = text.replace(/â/g, ' ');
+    text = text.replace(/NaÃ¯ve/g, 'Naive');
+    text = text.replace(/naÃ¯ve/g, 'naive');
+    text = text.replace(/Ã¯/g, 'i');
+
+    // Remove macrons, overlines, and control characters
+    text = text.replace(/[¯\u00AF\u02C9\u0304]/g, '');
+    text = text.replace(/[\u0000-\u001F\u007F-\u009F\u200B-\u200F\uFEFF\uFFFD\u2580-\u259F\u25A0-\u25FF\u2B1B-\u2B1F]/g, ' ');
+
+    // Remove hyphens inside compound words (e.g., Cross-lingual -> Cross lingual)
+    text = text.replace(/(\w+)[-\u2010-\u2015](\w+)/g, '$1 $2');
+    text = text.replace(/[-\u2010-\u2015]+/g, ' ');
+
+    // Clean any remaining markdown symbols, vertical bars, or artifacts
+    text = text.replace(/\|+/g, ' ');
     text = text.replace(/^#{1,6}\s*/gm, '');
     text = text.replace(/\*\*(.*?)\*\*/g, '$1');
     text = text.replace(/^\s*[\*\-]\s+/gm, '');
     text = text.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}]/gu, '');
+
+    // Pre-format all section headings onto their own isolated lines even if embedded mid-text
+    for (var j = 0; j < sectionHeadings.length; j++) {
+        var headingRegex = new RegExp('(?:\\s*|^)(?:\\d+[\\.\\)]\\s*)?(?:#+\\s*)?(?:\\*\\*)?' + sectionHeadings[j] + '(?::|\\s*-\\s*)?(?:\\*\\*)?(?=\\s+[A-Z0-9]|$)', 'gi');
+        text = text.replace(headingRegex, '\n\n' + sectionHeadings[j] + '\n');
+    }
+
+    text = text.replace(/[ \t]{2,}/g, ' ');
 
     var html = '';
     var lines = text.split('\n');
@@ -172,6 +201,14 @@ function parseAcademicText(text) {
     for (var i = 0; i < lines.length; i++) {
         var line = lines[i].trim();
 
+        if (!line) {
+            if (currentParagraph.trim()) {
+                html += '<p class="analysis-paragraph">' + currentParagraph.trim() + '</p>';
+                currentParagraph = '';
+            }
+            continue;
+        }
+
         var isHeading = false;
         for (var j = 0; j < sectionHeadings.length; j++) {
             if (line.toUpperCase() === sectionHeadings[j]) {
@@ -179,21 +216,14 @@ function parseAcademicText(text) {
                     html += '<p class="analysis-paragraph">' + currentParagraph.trim() + '</p>';
                     currentParagraph = '';
                 }
-                html += '<h3 class="section-heading">' + line.toUpperCase() + '</h3>';
+                html += '<h3 class="section-heading">' + sectionHeadings[j] + '</h3>';
                 isHeading = true;
                 break;
             }
         }
 
         if (!isHeading) {
-            if (line === '') {
-                if (currentParagraph.trim()) {
-                    html += '<p class="analysis-paragraph">' + currentParagraph.trim() + '</p>';
-                    currentParagraph = '';
-                }
-            } else {
-                currentParagraph += (currentParagraph ? ' ' : '') + line;
-            }
+            currentParagraph += (currentParagraph ? ' ' : '') + line;
         }
     }
 

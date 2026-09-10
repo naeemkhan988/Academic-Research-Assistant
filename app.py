@@ -86,9 +86,8 @@ def index():
                 }
             }
             
-            # Store in session
+            # Store in session (only the ID to keep cookie small)
             session['current_result_id'] = result_id
-            session['result_data'] = results_cache[result_id]['result_data']
             session.modified = True
             
             return redirect(url_for('results', result_id=result_id))
@@ -110,7 +109,6 @@ def results(result_id):
     data = results_cache[result_id]
     
     session['current_result_id'] = result_id
-    session['result_data'] = data['result_data']
     session.modified = True
     
     return render_template('results.html',
@@ -284,8 +282,8 @@ def export(result_id=None):
     
     if result_id and result_id in results_cache:
         result_data = results_cache[result_id]['result_data']
-    else:
-        result_data = session.get('result_data')
+    elif 'current_result_id' in session and session['current_result_id'] in results_cache:
+        result_data = results_cache[session['current_result_id']]['result_data']
     
     if not result_data:
         return "No results to export. Please perform a search first."

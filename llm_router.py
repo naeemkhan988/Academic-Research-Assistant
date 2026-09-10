@@ -3,9 +3,9 @@
 Multi-Provider LLM Fallback Router
 ===================================
 Architecture:
-  1. Primary   → Google Gemini (gemini-1.5-flash)  — free tier
-  2. Secondary → Groq (llama3-70b-8192)             — free tier
-  3. Fallback  → Ollama local (llama3)               — offline
+  1. Primary   → Google Gemini (models/gemini-3.7-flash) — free tier
+  2. Secondary → Groq (openai/gpt-oss-20b)              — free tier
+  3. Fallback  → Ollama local (llama3)                  — offline
 
 The router automatically cascades through providers on failure.
 It handles: rate limits (429), quota exceeded, network errors,
@@ -56,9 +56,9 @@ class GeminiProvider:
     NAME = PROVIDER_GEMINI
     
     def __init__(self, api_key: str):
-        self.api_key = api_key
-        self.base_url = "https://generativelanguage.googleapis.com/v1beta/models"
-        self.model = "gemini-2.0-flash-lite"
+        self.api_key = api_key.strip('"\'') if api_key else ''
+        self.base_url = "https://generativelanguage.googleapis.com/v1beta"
+        self.model = "models/gemini-1.5-flash"
     
     @property
     def available(self) -> bool:
@@ -69,7 +69,6 @@ class GeminiProvider:
         """Generate a complete response from Gemini"""
         url = f"{self.base_url}/{self.model}:generateContent?key={self.api_key}"
         
-        # Build the request payload
         contents = []
         if system_prompt:
             contents.append({
@@ -101,7 +100,6 @@ class GeminiProvider:
             timeout=60
         )
         
-        # Check for rate limit / quota errors
         if response.status_code in RETRYABLE_STATUS_CODES:
             error_msg = response.text[:300]
             raise ProviderRateLimitError(
@@ -127,7 +125,6 @@ class GeminiProvider:
         
         data = response.json()
         
-        # Extract text from Gemini response
         try:
             candidates = data.get("candidates", [])
             if candidates:
@@ -185,7 +182,6 @@ class GeminiProvider:
         
         response.raise_for_status()
         
-        # Parse SSE stream from Gemini
         for line in response.iter_lines(decode_unicode=True):
             if not line:
                 continue
@@ -210,9 +206,10 @@ class GroqProvider:
     NAME = PROVIDER_GROQ
     
     def __init__(self, api_key: str):
-        self.api_key = api_key
+        self.api_key = api_key.strip('"\'') if api_key else ''
         self.base_url = "https://api.groq.com/openai/v1"
-        self.model = "llama-3.3-70b-versatile"
+        # Updated to high-capacity stable Groq production model
+        self.model = "openai/gpt-oss-120b"
     
     @property
     def available(self) -> bool:
@@ -255,6 +252,10 @@ class GroqProvider:
             raise ProviderRateLimitError(
                 f"Groq bad request (model may be unavailable): {response.text[:200]}"
             )
+        if response.status_code == 404:
+            raise ProviderRateLimitError(
+                f"Groq model not found (may be decommissioned): {response.text[:200]}"
+            )
         if response.status_code in (401, 403):
             raise ProviderAuthError(f"Groq API key error: {response.text[:200]}")
         
@@ -289,6 +290,8 @@ class GroqProvider:
         
         if response.status_code in RETRYABLE_STATUS_CODES:
             raise ProviderRateLimitError(f"Groq stream returned {response.status_code}")
+        if response.status_code == 404:
+            raise ProviderRateLimitError(f"Groq stream model not found: {response.status_code}")
         if response.status_code in (401, 403):
             raise ProviderAuthError(f"Groq auth error: {response.status_code}")
         
@@ -431,24 +434,23 @@ class LLMRouter:
     The system NEVER crashes.
     """
     
-    # Default system prompt for academic research
     SYSTEM_PROMPT = (
-        "You are an expert academic research assistant. "
-        "Provide detailed, accurate, and well-structured analyses. "
+        "You are an expert research communicator and mentor. "
+        "Provide clear, engaging, human-friendly, and well-structured analyses that anyone can understand easily. "
+        "Explain complex scientific and technical concepts in plain, accessible language while maintaining accuracy and depth. "
         "Do NOT use Markdown symbols such as #, *, -, or bullet points. "
-        "Do NOT use emojis. Use plain professional text only. "
+        "Do NOT use emojis. Use plain text only. "
+        "Do NOT use vertical lines, double pipes (||), or hyphens inside words (write 'Cross lingual', 'real world', 'state of the art', 'machine learning' without hyphens). "
         "Use clear section headings in BOLD UPPERCASE. "
-        "Each section should be written in continuous paragraph form. "
-        "Keep formatting clean and suitable for a formal research report. "
-        "Avoid repetition. Maintain an academic and professional tone. "
-        "Be thorough, cite sources using (Author, Year) format, and maintain academic rigor."
+        "Each section should be written in clean, readable paragraph form. "
+        "Keep formatting clean, engaging, and suitable for a clear research report. "
+        "Avoid repetitive filler phrases. Cite sources using (Author, Year) format naturally."
     )
     
     def __init__(self):
         """Initialize all providers from environment variables"""
         from config import Config
         
-        # Initialize providers
         gemini_key = getattr(Config, 'GEMINI_API_KEY', None) or os.getenv('GEMINI_API_KEY', '')
         groq_key   = getattr(Config, 'GROQ_API_KEY', None)   or os.getenv('GROQ_API_KEY', '')
         ollama_url = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
@@ -473,49 +475,37 @@ class LLMRouter:
         
         # Fallback: Ollama (local)
         self.ollama = OllamaProvider(ollama_url)
-        self.providers.append(self.ollama)  # Always add, availability checked at call time
+        self.providers.append(self.ollama)
         logger.info("[OK] Ollama provider registered (fallback/offline)")
         
-        # Track which provider was last used
         self.last_provider_used: Optional[str] = None
-        
-        # Provider health tracking
         self._provider_failures: Dict[str, float] = {}
-        self._cooldown_seconds = 60  # Skip provider for 60s after failure
+        self._cooldown_seconds = 60
         
         logger.info(f"[INIT] LLM Router initialized with {len(self.providers)} provider(s)")
     
     def _is_provider_cooled_down(self, provider_name: str) -> bool:
-        """Check if a provider has had a recent failure and should be skipped"""
         last_failure = self._provider_failures.get(provider_name)
         if last_failure is None:
-            return True  # No failure, proceed
+            return True
         return (time.time() - last_failure) > self._cooldown_seconds
     
     def _mark_provider_failed(self, provider_name: str):
-        """Mark a provider as recently failed"""
         self._provider_failures[provider_name] = time.time()
     
     def _clear_provider_failure(self, provider_name: str):
-        """Clear failure record for a provider on success"""
         self._provider_failures.pop(provider_name, None)
     
     def generate(self, prompt: str, system_prompt: str = None,
                  temperature: float = 0.3, max_tokens: int = 1500) -> str:
-        """
-        Generate a response, cascading through providers on failure.
-        NEVER raises an exception to the caller — always returns a string.
-        """
         sys_prompt = system_prompt or self.SYSTEM_PROMPT
         errors = []
         
         for provider in self.providers:
-            # Skip providers that are cooling down from recent failures
             if not self._is_provider_cooled_down(provider.NAME):
                 logger.info(f"[SKIP] Skipping {provider.NAME} (cooling down after recent failure)")
                 continue
             
-            # For Ollama, check availability at call time
             if provider.NAME == PROVIDER_OLLAMA and not provider.available:
                 logger.warning(f"[SKIP] Ollama not available (not running locally)")
                 errors.append(f"Ollama: not running at {provider.base_url}")
@@ -560,17 +550,12 @@ class LLMRouter:
                 self._mark_provider_failed(provider.NAME)
                 errors.append(f"{provider.NAME}: {str(e)[:100]}")
         
-        # ALL providers failed — return safe fallback
         logger.error(f"[ERR] All providers failed. Errors: {errors}")
         self.last_provider_used = "fallback"
         return self._generate_safe_fallback(prompt, errors)
     
     def generate_stream(self, prompt: str, system_prompt: str = None,
                         temperature: float = 0.3, max_tokens: int = 1500) -> Generator[str, None, None]:
-        """
-        Stream a response, cascading through providers on failure.
-        NEVER raises an exception — always yields content.
-        """
         sys_prompt = system_prompt or self.SYSTEM_PROMPT
         errors = []
         
@@ -631,13 +616,11 @@ class LLMRouter:
                 self._mark_provider_failed(provider.NAME)
                 errors.append(f"{provider.NAME}: {str(e)[:100]}")
         
-        # ALL providers failed — stream safe fallback
         logger.error(f"[ERR] All providers failed for stream. Errors: {errors}")
         self.last_provider_used = "fallback"
         yield from self._stream_safe_fallback(prompt, errors)
     
     def get_status(self) -> Dict[str, Any]:
-        """Get current status of all providers"""
         status = {
             "last_provider_used": self.last_provider_used,
             "providers": {}
@@ -645,7 +628,7 @@ class LLMRouter:
         
         for provider in self.providers:
             pname = provider.NAME
-            is_available = provider.available if pname != PROVIDER_OLLAMA else provider.available
+            is_available = provider.available
             is_cooled = self._is_provider_cooled_down(pname)
             
             status["providers"][pname] = {
@@ -657,12 +640,7 @@ class LLMRouter:
         
         return status
     
-    # -----------------------------------------------------------------------
-    # Safe Fallback (when ALL providers fail)
-    # -----------------------------------------------------------------------
-    
     def _generate_safe_fallback(self, prompt: str, errors: List[str]) -> str:
-        """Generate a safe static response when all providers are unavailable"""
         error_summary = "; ".join(errors) if errors else "Unknown"
         
         if "summary" in prompt.lower() or "literature review" in prompt.lower():
@@ -677,9 +655,7 @@ class LLMRouter:
             return self._fallback_generic(error_summary)
     
     def _stream_safe_fallback(self, prompt: str, errors: List[str]) -> Generator[str, None, None]:
-        """Stream a safe fallback response character by character"""
         text = self._generate_safe_fallback(prompt, errors)
-        # Stream in small chunks to simulate real-time output
         chunk_size = 5
         for i in range(0, len(text), chunk_size):
             yield text[i:i + chunk_size]

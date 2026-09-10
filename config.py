@@ -39,7 +39,7 @@ class Config:
     EMBEDDING_MODEL = 'text-embedding-3-small'
     
     # AI Model Configuration — Multi-Provider Fallback
-    # Primary: Gemini (gemini-1.5-flash) → Secondary: Groq (llama3-70b) → Fallback: Ollama (llama3)
+    # Primary: Gemini (gemini-2.5-flash) → Secondary: Groq (llama-3.1-8b-instant) → Fallback: Ollama (llama3)
     AI_MODEL = 'multi-provider'  # Managed by llm_router.py
     AI_TEMPERATURE = 0.3
     AI_MAX_TOKENS = 4000
